@@ -1,0 +1,6 @@
+{
+  "name": "Enterprise Video Review & Inspection Platform",
+  "description": "사내 영상 검수 및 관리자 대시보드 플랫폼. 실시간 영상 처리 파이프라인, 역할별 권한 제어, AI 자막 생성/번역, AWS 서버리스 아키텍처 및 오프라인 모드 지원.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
