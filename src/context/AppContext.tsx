@@ -23,6 +23,10 @@ interface AppContextType {
   switchRole: (role: UserRole) => void;
   selectedVideo: VideoSession | null;
   setSelectedVideo: (v: VideoSession | null) => void;
+  portalMode: 'user' | 'admin';
+  setPortalMode: (mode: 'user' | 'admin') => void;
+  adminTab: 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws';
+  setAdminTab: (tab: 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws') => void;
   activeTab: 'list' | 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws';
   setActiveTab: (tab: 'list' | 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws') => void;
   language: 'ko' | 'en';
@@ -141,6 +145,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return 'ko';
   });
+
+  const [portalMode, setPortalModeState] = useState<'user' | 'admin'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('portal') === 'admin' || window.location.pathname.startsWith('/admin')) {
+        return 'admin';
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return 'user';
+  });
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws'>('dashboard');
+
+  const setPortalMode = (mode: 'user' | 'admin') => {
+    setPortalModeState(mode);
+    try {
+      const url = new URL(window.location.href);
+      if (mode === 'admin') {
+        url.searchParams.set('portal', 'admin');
+      } else {
+        url.searchParams.delete('portal');
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<'list' | 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws'>('list');
   const [selectedVideo, setSelectedVideo] = useState<VideoSession | null>(null);
@@ -502,6 +534,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         switchRole,
         selectedVideo,
         setSelectedVideo,
+        portalMode,
+        setPortalMode,
+        adminTab,
+        setAdminTab,
         activeTab,
         setActiveTab,
         language,

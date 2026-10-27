@@ -1,6 +1,6 @@
 {
-  "summary":  "Comprehensive implementation plan for the enterprise video review & inspection platform with admin dashboard, real-time processing status, role-based permissions, drag-and-drop video upload, AI subtitle generation & translation, audit logs, notifications, offline review mode, and shareable review links.",
-  "updatedAt":  "2026-10-27T06:41:32.275149354Z",
+  "summary":  "Architecture and navigation restructuring plan separating the portal into a clean, distraction-free User Review Portal and an authenticated Admin Management Console with dedicated routing, verified role gating, and distinct navigation structures.",
+  "updatedAt":  "2026-10-27T08:23:44.589385209Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

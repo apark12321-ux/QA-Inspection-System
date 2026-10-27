@@ -21,7 +21,8 @@ import {
   Clock,
   Send,
   Loader2,
-  FileText
+  FileText,
+  ShieldAlert
 } from 'lucide-react';
 
 export const ReviewModal: React.FC = () => {
@@ -59,10 +60,19 @@ export const ReviewModal: React.FC = () => {
   const [commentText, setCommentText] = useState('');
   const [includeTimestamp, setIncludeTimestamp] = useState(true);
 
-  // Modal active right panel tab
   const [rightTab, setRightTab] = useState<'feedback' | 'aiSubtitles'>('feedback');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiGenError, setAiGenError] = useState<string | null>(null);
+  const [showContextMenuNotice, setShowContextMenuNotice] = useState(false);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowContextMenuNotice(true);
+    setTimeout(() => {
+      setShowContextMenuNotice(false);
+    }, 2500);
+  };
 
   useEffect(() => {
     if (selectedVideo) {
@@ -327,15 +337,30 @@ export const ReviewModal: React.FC = () => {
           {/* ================= LEFT: VIDEO PLAYER ================= */}
           <div className="lg:w-[58%] bg-black flex flex-col justify-between select-none">
             
-            {/* 16:9 Screen Container */}
-            <div className="relative w-full aspect-video bg-slate-950 flex items-center justify-center overflow-hidden group">
-              
+            {/* 16:9 Screen Container with Right-Click Protection */}
+            <div
+              onContextMenu={handleContextMenu}
+              onDragStart={e => e.preventDefault()}
+              className="relative w-full aspect-video bg-slate-950 flex items-center justify-center overflow-hidden group select-none"
+            >
+              {/* Security Warning Toast on Right Click */}
+              {showContextMenuNotice && (
+                <div className="absolute top-4 inset-x-4 mx-auto w-fit max-w-[90%] z-40 px-3.5 py-1.5 bg-slate-900/95 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold shadow-2xl backdrop-blur-md flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
+                  <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>사내 보안 규정에 따라 영상 화면의 우클릭 및 저장이 제한되어 있습니다.</span>
+                </div>
+              )}
+
               {!useCanvasFallback ? (
                 <video
                   ref={videoRef}
                   src={selectedVideo.videoUrl}
-                  className="w-full h-full object-contain cursor-pointer"
+                  className="w-full h-full object-contain cursor-pointer select-none"
                   onClick={handlePlayPause}
+                  onContextMenu={handleContextMenu}
+                  onDragStart={e => e.preventDefault()}
+                  controlsList="nodownload noplaybackrate"
+                  disablePictureInPicture
                   onTimeUpdate={() => {
                     if (videoRef.current) {
                       setCurrentTime(videoRef.current.currentTime);
@@ -358,7 +383,9 @@ export const ReviewModal: React.FC = () => {
                   width={640}
                   height={360}
                   onClick={handlePlayPause}
-                  className="w-full h-full object-contain cursor-pointer"
+                  onContextMenu={handleContextMenu}
+                  onDragStart={e => e.preventDefault()}
+                  className="w-full h-full object-contain cursor-pointer select-none"
                 />
               )}
 
