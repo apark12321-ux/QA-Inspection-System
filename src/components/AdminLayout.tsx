@@ -2,7 +2,6 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { AdminDashboard } from './AdminDashboard';
 import { PipelineMonitor } from './PipelineMonitor';
-import { UserManagement } from './UserManagement';
 import { AuditLogView } from './AuditLogView';
 import { AwsArchitectureView } from './AwsArchitectureView';
 import { MediaStorageManager } from './MediaStorageManager';
@@ -11,14 +10,10 @@ import {
   BarChart3,
   HardDrive,
   Activity,
-  Shield,
   FileText,
   Cloud,
   ArrowLeft,
-  ShieldAlert,
   Globe,
-  Bell,
-  CheckCircle2,
   ChevronRight,
   ExternalLink
 } from 'lucide-react';
@@ -28,8 +23,6 @@ export const AdminLayout: React.FC = () => {
     adminTab,
     setAdminTab,
     setPortalMode,
-    currentUser,
-    switchRole,
     language,
     setLanguage,
     notifications
@@ -60,12 +53,6 @@ export const AdminLayout: React.FC = () => {
       label: '처리 파이프라인',
       icon: <Activity className="w-4 h-4" />,
       desc: 'AWS MediaConvert & Gemini AI 실시간 모니터링'
-    },
-    {
-      id: 'rbac',
-      label: '권한 및 사용자 관리',
-      icon: <Shield className="w-4 h-4" />,
-      desc: '역할별 접근 권한 매트릭스 및 계정 관리'
     },
     {
       id: 'audit',
@@ -161,14 +148,6 @@ export const AdminLayout: React.FC = () => {
               <span>일반 검수 화면 보기</span>
             </button>
 
-            {/* Current Role Badge */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200 text-xs">
-              <span className="font-semibold text-slate-800">{currentUser.name}</span>
-              <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
-                {currentUser.role}
-              </span>
-            </div>
-
             {/* Language */}
             <button
               onClick={() => setLanguage(language === 'ko' ? 'en' : 'ko')}
@@ -182,30 +161,11 @@ export const AdminLayout: React.FC = () => {
 
         </header>
 
-        {/* Non-Admin Role Warning Banner (if visitor isn't admin) */}
-        {currentUser.role !== 'ADMIN' && (
-          <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex items-center justify-between text-xs text-amber-900">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>
-                현재 <strong>{currentUser.role}</strong> 역할로 관리자 콘솔을 열람 중입니다. 전체 관리 권한을 행사하려면 관리자로 전환하세요.
-              </span>
-            </div>
-            <button
-              onClick={() => switchRole('ADMIN')}
-              className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-xs shadow-2xs transition-colors shrink-0"
-            >
-              관리자(Admin)로 전환
-            </button>
-          </div>
-        )}
-
         {/* Content Viewport */}
         <main className="p-6 overflow-y-auto flex-1">
           {adminTab === 'dashboard' && <AdminDashboard />}
           {adminTab === 'storage' && <MediaStorageManager />}
           {adminTab === 'pipeline' && <PipelineMonitor />}
-          {adminTab === 'rbac' && <UserManagement />}
           {adminTab === 'audit' && <AuditLogView />}
           {adminTab === 'aws' && <AwsArchitectureView />}
         </main>

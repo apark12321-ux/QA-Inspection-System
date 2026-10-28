@@ -1,293 +1,219 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import {
-  X,
-  Upload,
-  Film,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  FileVideo
-} from 'lucide-react';
+import { uploadVideoFile } from '../utils/s3Storage';
+import { newFirestoreId } from '../utils/firebaseStore';
+import { X, Upload, FileVideo, Loader2, AlertCircle, CheckCircle2, Link2 } from 'lucide-react';
 
 export const UploadModal: React.FC = () => {
-  const { uploadModalOpen, setUploadModalOpen, addNewVideo, setSelectedVideo } = useApp();
-
-  const [dragActive, setDragActive] = useState(false);
+  const {
+    uploadModalOpen,
+    setUploadModalOpen,
+    addNewVideo,
+    setSelectedVideo,
+    projects,
+    activeProject
+  } = useApp();
+  const [projectId, setProjectId] = useState(activeProject?.id || projects[0]?.id || '');
+  const [lessonId, setLessonId] = useState('');
+  const [sessionTitle, setSessionTitle] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>('');
-  const [duration, setDuration] = useState<number>(600);
-  const [fileSizeStr, setFileSizeStr] = useState<string>('');
-
-  // Form Fields
-  const [weekId, setWeekId] = useState<number>(4);
-  const [weekTitle, setWeekTitle] = useState<string>('AI 기반 후반 프로덕션 및 사운드 디자인');
-  const [sessionTitle, setSessionTitle] = useState<string>('보이스 클론과 다국어 더빙 검수 실습');
-  const [fileName, setFileName] = useState<string>('');
-
-  // Upload Progress simulation
-  const [isUploading, setIsUploading] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [externalUrl, setExternalUrl] = useState('');
+  const [uploadMode, setUploadMode] = useState<'file' | 'link'>('file');
   const [uploadProgress, setUploadProgress] = useState(0);
-
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const project = projects.find(item => item.id === projectId);
+  const lessons = useMemo(() => {
+    if (!project) return [];
+    if (project.sessions?.length) return project.sessions;
+    return (project.weeks || []).flatMap(week => week.sessions.map(session => ({ ...session, weekTitle: week.title })));
+  }, [project]);
+  const selectedLesson = lessons.find(lesson => lesson.id === lessonId);
+
+  useEffect(() => {
+    if (!projectId && projects.length) setProjectId(activeProject?.id || projects[0].id);
+  }, [activeProject?.id, projectId, projects]);
+
+  useEffect(() => {
+    if (!lessonId && lessons.length) {
+      setLessonId(lessons[0].id);
+      setSessionTitle(lessons[0].title);
+    }
+  }, [lessonId, lessons]);
+
+  useEffect(() => {
+    if (!uploadModalOpen) {
+      setError('');
+      setUploadProgress(0);
+      setIsUploading(false);
+      setSelectedFile(null);
+      setExternalUrl('');
+    }
+  }, [uploadModalOpen]);
 
   if (!uploadModalOpen) return null;
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
+  const processFile = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('video/') && !/\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name)) {
+      setError('MP4, WebM, MOV, M4V 또는 MKV 영상 파일을 선택해 주세요.');
+      return;
     }
+    setError('');
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    const probe = document.createElement('video');
+    probe.preload = 'metadata';
+    probe.onloadedmetadata = () => {
+      setDuration(Number.isFinite(probe.duration) ? Math.round(probe.duration) : 0);
+      URL.revokeObjectURL(objectUrl);
+    };
+    probe.onerror = () => URL.revokeObjectURL(objectUrl);
+    probe.src = objectUrl;
   };
 
-  const processFile = (file: File) => {
-    if (!file.type.startsWith('video/') && !file.name.match(/\.(mp4|webm|mov|mkv)$/i)) {
-      alert('동영상 파일(.mp4, .webm, .mov)만 업로드할 수 있습니다.');
+  const getWeekNumber = (weekTitle?: string) => {
+    const match = weekTitle?.match(/\d+/);
+    return match ? Number(match[0]) : 1;
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    if (!project) {
+      setError('먼저 프로젝트를 등록해 주세요.');
+      return;
+    }
+    const title = sessionTitle.trim() || selectedLesson?.title || '';
+    if (!title) {
+      setError('영상을 연결할 차시를 선택하거나 차시명을 입력해 주세요.');
       return;
     }
 
-    setSelectedFile(file);
-    setFileName(file.name);
-
-    // Calculate file size in MB
-    const mb = (file.size / (1024 * 1024)).toFixed(0);
-    setFileSizeStr(`${mb} MB`);
-
-    // Create object URL for local preview and metadata inspection
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
-
-    // Detect duration using temporary video element
-    const tempVideo = document.createElement('video');
-    tempVideo.preload = 'metadata';
-    tempVideo.src = objectUrl;
-    tempVideo.onloadedmetadata = () => {
-      setDuration(Math.round(tempVideo.duration) || 600);
-    };
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!fileName.trim()) return;
-
+    const videoId = newFirestoreId('videos');
+    const weekTitle = selectedLesson?.weekTitle || '주차 미지정';
+    const weekId = getWeekNumber(weekTitle);
     setIsUploading(true);
-    setUploadProgress(10);
-
-    // Simulate S3 presigned multipart upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          setTimeout(() => {
-            const newVideo = addNewVideo({
-              weekId,
-              weekTitle,
-              sessionTitle,
-              fileName: fileName.trim(),
-              videoUrl: previewUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-              duration,
-              fileSize: fileSizeStr || '180 MB'
-            });
-
-            setIsUploading(false);
-            setUploadModalOpen(false);
-            setSelectedVideo(newVideo);
-          }, 600);
-          return 100;
-        }
-        return prev + 25;
-      });
-    }, 250);
+    setUploadProgress(0);
+    try {
+      let newVideo;
+      if (uploadMode === 'link') {
+        if (!externalUrl.trim()) throw new Error('영상 링크를 입력해 주세요.');
+        const url = new URL(externalUrl.trim());
+        if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http 또는 https 링크를 입력해 주세요.');
+        newVideo = addNewVideo({
+          id: videoId,
+          projectId: project.id,
+          lessonId: selectedLesson?.id,
+          weekId,
+          weekTitle,
+          sessionTitle: title,
+          fileName: title,
+          videoUrl: url.toString(),
+          sourceType: 'direct',
+          duration: 0,
+          fileSize: '외부 스트리밍'
+        });
+      } else {
+        if (!selectedFile) throw new Error('업로드할 영상 파일을 선택해 주세요.');
+        const s3Key = await uploadVideoFile({
+          projectName: project.name,
+          lessonName: title,
+          fileName: selectedFile.name,
+          videoId,
+          file: selectedFile,
+          onProgress: setUploadProgress
+        });
+        newVideo = addNewVideo({
+          id: videoId,
+          projectId: project.id,
+          lessonId: selectedLesson?.id,
+          s3Key,
+          mimeType: selectedFile.type || 'video/mp4',
+          sizeBytes: selectedFile.size,
+          weekId,
+          weekTitle,
+          sessionTitle: title,
+          fileName: selectedFile.name,
+          videoUrl: '',
+          duration,
+          fileSize: selectedFile.size >= 1024 ** 3
+            ? (selectedFile.size / 1024 ** 3).toFixed(1) + ' GB'
+            : Math.max(1, Math.round(selectedFile.size / 1024 ** 2)) + ' MB'
+        });
+      }
+      setSelectedVideo(newVideo);
+      setUploadModalOpen(false);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : '업로드를 완료하지 못했습니다.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-        
-        {/* Header */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs">
+      <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
-              <Upload className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">새 검수 동영상 등록 (드래그 앤 드롭)</h3>
-              <p className="text-xs text-slate-500">AWS S3 Presigned URL 직접 업로드 및 트랜스코딩</p>
-            </div>
+            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center"><Upload className="w-4 h-4" /></div>
+            <div><h3 className="text-base font-bold text-slate-900">강의 영상 등록</h3><p className="text-xs text-slate-500">원본 영상을 저장하고 검수 차시에 연결합니다.</p></div>
           </div>
-
-          <button
-            onClick={() => setUploadModalOpen(false)}
-            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-200"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <button type="button" disabled={isUploading} onClick={() => setUploadModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-200 disabled:opacity-40" aria-label="닫기"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Upload Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          
-          {/* Drag & Drop Dropzone */}
-          <div
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`p-6 border-2 border-dashed rounded-xl text-center cursor-pointer transition-colors ${
-              dragActive
-                ? 'border-blue-500 bg-blue-50/60'
-                : selectedFile
-                ? 'border-emerald-500 bg-emerald-50/40'
-                : 'border-slate-300 hover:border-slate-400 bg-slate-50/50'
-            }`}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/mp4,video/webm,video/quicktime"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-
-            {selectedFile ? (
-              <div className="flex flex-col items-center">
-                <FileVideo className="w-10 h-10 text-emerald-600 mb-2" />
-                <p className="text-sm font-bold text-slate-800">{selectedFile.name}</p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  용량: {fileSizeStr} · 감지 길이: {Math.round(duration / 60)}분
-                </p>
-                <span className="mt-2 text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                  파일 선택 완료 (클릭하여 변경)
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center">
-                <Upload className="w-10 h-10 text-slate-400 mb-2" />
-                <p className="text-sm font-bold text-slate-700">
-                  동영상 파일을 이곳에 드래그하거나 클릭하여 선택하세요
-                </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  MP4, WebM, MOV 지원 (최대 5GB S3 멀티파트 전송)
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Metadata Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                주차 구분
-              </label>
-              <select
-                value={weekId}
-                onChange={e => {
-                  const id = parseInt(e.target.value, 10);
-                  setWeekId(id);
-                  if (id === 1) setWeekTitle('AI 시대, 새로운 스토리텔링의 문법');
-                  else if (id === 2) setWeekTitle('생성형 AI를 활용한 시나리오 디벨롭');
-                  else if (id === 3) setWeekTitle('멀티모달 비주얼 스토리보딩');
-                  else setWeekTitle('AI 기반 후반 프로덕션 및 사운드 디자인');
-                }}
-                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-800 font-medium"
-              >
-                <option value={1}>1주차</option>
-                <option value={2}>2주차</option>
-                <option value={3}>3주차</option>
-                <option value={4}>4주차 (신규)</option>
+            <label className="text-xs font-bold text-slate-700">프로젝트
+              <select value={projectId} onChange={event => { setProjectId(event.target.value); setLessonId(''); }} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium">
+                <option value="">프로젝트 선택</option>
+                {projects.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                동영상 파일명
-              </label>
-              <input
-                type="text"
-                value={fileName}
-                onChange={e => setFileName(e.target.value)}
-                placeholder="예) 26story04_01_01.mp4"
-                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg font-mono text-slate-900"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              차시 상세 제목
             </label>
-            <input
-              type="text"
-              value={sessionTitle}
-              onChange={e => setSessionTitle(e.target.value)}
-              placeholder="예) 보이스 클론과 다국어 더빙 검수 실습"
-              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-900"
-              required
-            />
+            <label className="text-xs font-bold text-slate-700">등록된 차시
+              <select value={lessonId} onChange={event => {
+                setLessonId(event.target.value);
+                const lesson = lessons.find(item => item.id === event.target.value);
+                if (lesson) setSessionTitle(lesson.title);
+              }} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium">
+                <option value="">차시 선택 또는 아래에 입력</option>
+                {lessons.map(lesson => <option key={lesson.id} value={lesson.id}>{lesson.weekTitle ? lesson.weekTitle + ' · ' : ''}{lesson.title}</option>)}
+              </select>
+            </label>
           </div>
 
-          {/* Upload Progress Bar */}
-          {isUploading && (
-            <div className="space-y-1.5 p-3 bg-blue-50 rounded-xl border border-blue-200">
-              <div className="flex items-center justify-between text-xs font-bold text-blue-900">
-                <span className="flex items-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  S3 멀티파트 업로드 및 MediaConvert 작업 등록 중...
-                </span>
-                <span className="font-mono">{uploadProgress}%</span>
-              </div>
-              <div className="w-full bg-blue-200 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-blue-600 h-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
+          <label className="block text-xs font-bold text-slate-700">차시명
+            <input value={sessionTitle} onChange={event => setSessionTitle(event.target.value)} placeholder="예: 1차시 강의 소개" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+          </label>
+
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setUploadMode('file')} className={'px-3 py-1.5 rounded-lg text-xs font-bold ' + (uploadMode === 'file' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600')}><FileVideo className="inline w-3.5 h-3.5 mr-1" />영상 파일</button>
+            <button type="button" onClick={() => setUploadMode('link')} className={'px-3 py-1.5 rounded-lg text-xs font-bold ' + (uploadMode === 'link' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600')}><Link2 className="inline w-3.5 h-3.5 mr-1" />외부 링크</button>
+          </div>
+
+          {uploadMode === 'file' ? (
+            <button type="button" disabled={isUploading} onClick={() => fileInputRef.current?.click()} className="w-full p-6 border-2 border-dashed border-slate-300 hover:border-blue-400 rounded-xl bg-slate-50 text-center disabled:opacity-50">
+              <input ref={fileInputRef} type="file" accept="video/*,.mkv" onChange={event => processFile(event.target.files?.[0])} className="hidden" />
+              {selectedFile ? <><FileVideo className="w-8 h-8 mx-auto text-emerald-600 mb-2" /><strong className="block text-sm text-slate-800">{selectedFile.name}</strong><span className="text-xs text-slate-500">{(selectedFile.size / 1024 ** 2).toFixed(1)} MB{duration > 0 ? ' · ' + Math.floor(duration / 60) + '분 ' + duration % 60 + '초' : ''}</span></> : <><Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" /><strong className="block text-sm text-slate-700">영상 파일을 선택하세요</strong><span className="text-xs text-slate-500">MP4, WebM, MOV 등 실제 파일을 S3에 업로드합니다.</span></>}
+            </button>
+          ) : (
+            <label className="block text-xs font-bold text-slate-700">영상 링크
+              <input type="url" value={externalUrl} onChange={event => setExternalUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono" />
+            </label>
           )}
 
-          {/* Action buttons */}
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setUploadModalOpen(false)}
-              className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors"
-            >
-              취소
-            </button>
+          {isUploading && <div className="space-y-1.5"><div className="flex justify-between text-xs font-semibold text-blue-800"><span className="flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" />원본 업로드 중</span><span>{uploadProgress}%</span></div><div className="h-2 rounded-full bg-blue-100 overflow-hidden"><div className="h-full bg-blue-600 transition-all" style={{ width: uploadProgress + '%' }} /></div></div>}
+          {error && <div role="alert" className="p-3 rounded-lg border border-rose-200 bg-rose-50 text-xs text-rose-700 flex items-start gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
+          {!error && !isUploading && selectedFile && <div className="text-xs text-emerald-700 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" />파일을 선택했습니다. 업로드 전에는 검수 목록에 등록되지 않습니다.</div>}
 
-            <button
-              type="submit"
-              disabled={isUploading || !fileName.trim()}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>업로드 및 검수 큐 인입</span>
-            </button>
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" disabled={isUploading} onClick={() => setUploadModalOpen(false)} className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold disabled:opacity-50">취소</button>
+            <button type="submit" disabled={isUploading || !project} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold flex items-center gap-1.5"><Upload className="w-3.5 h-3.5" />{isUploading ? '업로드 중...' : '영상 등록'}</button>
           </div>
-
         </form>
-
       </div>
     </div>
   );

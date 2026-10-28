@@ -1,43 +1,6 @@
 import { VideoSession, UserAccount, AuditLog, NotificationItem } from '../types';
 
-export const INITIAL_USERS: UserAccount[] = [
-  {
-    id: 'user_admin',
-    name: '김관리 (Admin)',
-    email: 'admin@corporate-edu.com',
-    role: 'ADMIN',
-    department: '교육콘텐츠운영본부',
-    status: 'active',
-    lastActive: '방금 전'
-  },
-  {
-    id: 'user_rev1',
-    name: '이영희 (Reviewer)',
-    email: 'yh.lee@corporate-edu.com',
-    role: 'REVIEWER',
-    department: '영상품질검수팀',
-    status: 'active',
-    lastActive: '10분 전'
-  },
-  {
-    id: 'user_creator1',
-    name: '박제작 (Creator)',
-    email: 'creator.park@studio-alpha.com',
-    role: 'CREATOR',
-    department: '디지털미디어제작실',
-    status: 'active',
-    lastActive: '1시간 전'
-  },
-  {
-    id: 'user_viewer',
-    name: '최참관 (Viewer)',
-    email: 'viewer.choi@partner.com',
-    role: 'VIEWER',
-    department: '외부감리단',
-    status: 'active',
-    lastActive: '3일 전'
-  }
-];
+export const INITIAL_USERS: UserAccount[] = [];
 
 export const INITIAL_VIDEOS: VideoSession[] = [
   // 1. Bio Health 시대의 ESG와 지속 가능한 성장 (Screenshot 1 Active Dataset)
@@ -535,19 +498,8 @@ export const INITIAL_VIDEOS: VideoSession[] = [
     status: 'APPROVED',
     uploadedAt: '2026.10.26 13:27',
     updatedAt: '2026.10.26 14:10',
-    reviewerName: '이영희',
-    reviews: [
-      {
-        id: 'rev-st-01',
-        author: '이영희',
-        role: 'REVIEWER',
-        timestampSeconds: 45,
-        timestampFormatted: '00:45',
-        verdict: 'APPROVED',
-        content: '도입부 모션 및 오디오 싱크 확인 완료. 최종 승인합니다.',
-        createdAt: '2026.10.26 14:10'
-      }
-    ],
+    reviewerName: '',
+    reviews: [],
     subtitles: [],
     pipeline: {
       jobId: 'job-story-02',
@@ -563,28 +515,7 @@ export const INITIAL_VIDEOS: VideoSession[] = [
   }
 ];
 
-export const INITIAL_AUDIT_LOGS: AuditLog[] = [
-  {
-    id: 'log-01',
-    actor: '이영희',
-    role: 'REVIEWER',
-    action: 'STATUS_PENDING',
-    target: 'dhc26_01.mp4',
-    details: 'Bio Health 시대의 ESG와 지속 가능한 성장 검수 대기열 진입',
-    timestamp: '2026.10.27 19:54',
-    ipAddress: '192.168.1.42'
-  },
-  {
-    id: 'log-02',
-    actor: '김관리',
-    role: 'ADMIN',
-    action: 'PROJECT_SETUP',
-    target: 'Bio Health 시대의 ESG와 지속 가능한 성장',
-    details: '17개 프로젝트 및 83개 동영상 메타데이터 연동 완료',
-    timestamp: '2026.10.27 18:30',
-    ipAddress: '192.168.1.10'
-  }
-];
+export const INITIAL_AUDIT_LOGS: AuditLog[] = [];
 
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {

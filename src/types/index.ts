@@ -21,6 +21,16 @@ export interface SubtitleEntry {
   endSeconds: number;
   textKo: string;
   textEn: string;
+  confidence?: 'high' | 'medium' | 'low';
+  uncertaintyNote?: string;
+}
+
+export interface VideoAiAnalysis {
+  summary: string;
+  keyTerms: string[];
+  uncertaintyNotes: string[];
+  model: string;
+  analyzedAt: string;
 }
 
 export interface PipelineStage {
@@ -40,6 +50,10 @@ export interface VideoSession {
   videoUrl: string;
   sourceType?: 'direct' | 'youtube' | 'vimeo' | 'googledrive';
   projectId?: string;
+  lessonId?: string;
+  s3Key?: string;
+  mimeType?: string;
+  sizeBytes?: number;
   duration: number; // in seconds
   fileSize: string;
   status: ReviewStatus;
@@ -48,6 +62,7 @@ export interface VideoSession {
   reviewerName?: string;
   reviews: ReviewComment[];
   subtitles: SubtitleEntry[];
+  aiAnalysis?: VideoAiAnalysis;
   pipeline: {
     jobId: string;
     overallProgress: number;

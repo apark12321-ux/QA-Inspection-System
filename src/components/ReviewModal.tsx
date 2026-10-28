@@ -4,6 +4,7 @@ import { translations } from '../utils/i18n';
 import { ReviewComment, SubtitleEntry } from '../types';
 import { formatTime, exportSubtitlesToSrt, exportSubtitlesToVtt, downloadFile } from '../utils/formatters';
 import { getVideoSourceInfo } from '../utils/videoUtils';
+import { getVideoPlaybackUrl } from '../utils/s3Storage';
 import {
   X,
   Play,
@@ -32,12 +33,12 @@ export const ReviewModal: React.FC = () => {
     selectedVideo,
     setSelectedVideo,
     currentUser,
-    switchRole,
     language,
     addReviewComment,
     updateVideoStatus,
     deleteReviewComment,
     updateVideoSubtitles,
+    updateVideoAiAnalysis,
     openShareModal,
     seekToTime,
     setSeekToTime
@@ -45,6 +46,8 @@ export const ReviewModal: React.FC = () => {
 
   const t = translations[language];
   const sourceInfo = getVideoSourceInfo(selectedVideo?.videoUrl);
+  const [resolvedPlaybackUrl, setResolvedPlaybackUrl] = useState('');
+  const [playbackUrlError, setPlaybackUrlError] = useState<string | null>(null);
 
   // Video playback states & references
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -52,21 +55,22 @@ export const ReviewModal: React.FC = () => {
 
   // Mutable refs to prevent render lag / infinite loops during playback
   const currentVideoIdRef = useRef<string | null>(null);
-  const currentTimeRef = useRef<number>(8); // Default 8s matching screenshot
+  const pendingSeekRef = useRef<number | null>(null);
+  const currentTimeRef = useRef<number>(0);
   const isPlayingRef = useRef<boolean>(false);
   const playbackRateRef = useRef<number>(1.0);
-  const durationRef = useRef<number>(749);
+  const durationRef = useRef<number>(0);
   const lastUiUpdateRef = useRef<number>(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(8);
-  const [duration, setDuration] = useState(749);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [isMuted, setIsMuted] = useState(false);
   const [useCanvasFallback, setUseCanvasFallback] = useState(false);
 
   // Review Form states
-  const [reviewerName, setReviewerName] = useState(currentUser.name.split(' ')[0]);
+  const [reviewerName, setReviewerName] = useState('');
   const [selectedVerdict, setSelectedVerdict] = useState<'APPROVED' | 'REJECTED' | 'PENDING'>('PENDING');
   const [commentText, setCommentText] = useState('');
   const [includeTimestamp, setIncludeTimestamp] = useState(true);
@@ -74,6 +78,7 @@ export const ReviewModal: React.FC = () => {
   const [rightTab, setRightTab] = useState<'feedback' | 'aiSubtitles'>('feedback');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiGenError, setAiGenError] = useState<string | null>(null);
+  const [aiProgress, setAiProgress] = useState('');
   const [showContextMenuNotice, setShowContextMenuNotice] = useState(false);
   const [verdictNotice, setVerdictNotice] = useState<{
     type: 'APPROVED' | 'REJECTED' | 'PENDING';
@@ -85,6 +90,26 @@ export const ReviewModal: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [editingSubId, setEditingSubId] = useState<number | null>(null);
   const [editingTextKo, setEditingTextKo] = useState<string>('');
+
+  useEffect(() => {
+    if (!selectedVideo) {
+      setResolvedPlaybackUrl('');
+      setPlaybackUrlError(null);
+      return;
+    }
+
+    let active = true;
+    setPlaybackUrlError(null);
+    setResolvedPlaybackUrl(selectedVideo.s3Key ? '' : selectedVideo.videoUrl || '');
+    if (selectedVideo.s3Key) {
+      getVideoPlaybackUrl(selectedVideo.s3Key)
+        .then(url => { if (active) setResolvedPlaybackUrl(url); })
+        .catch(error => {
+          if (active) setPlaybackUrlError(error instanceof Error ? error.message : '영상 재생 주소를 불러오지 못했습니다.');
+        });
+    }
+    return () => { active = false; };
+  }, [selectedVideo?.id, selectedVideo?.s3Key, selectedVideo?.videoUrl]);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -102,22 +127,23 @@ export const ReviewModal: React.FC = () => {
     // When opening a DIFFERENT video, reset player & comment form
     if (currentVideoIdRef.current !== selectedVideo.id) {
       currentVideoIdRef.current = selectedVideo.id;
-      const initialDur = selectedVideo.duration || 749;
+      const initialDur = selectedVideo.duration || 0;
       setDuration(initialDur);
       durationRef.current = initialDur;
       
-      const startTime = 8; // Match screenshot 00:08
+      const startTime = 0;
       setCurrentTime(startTime);
       currentTimeRef.current = startTime;
       
       setIsPlaying(false);
       isPlayingRef.current = false;
       setUseCanvasFallback(false);
+      pendingSeekRef.current = null;
       setCommentText('');
       setVerdictNotice(null);
 
       if (videoRef.current) {
-        videoRef.current.currentTime = startTime;
+        pendingSeekRef.current = startTime;
         videoRef.current.load();
       }
     }
@@ -130,7 +156,6 @@ export const ReviewModal: React.FC = () => {
         ? 'REJECTED'
         : 'PENDING';
     setSelectedVerdict(vStatus);
-    setReviewerName(currentUser.name.split(' ')[0]);
   }, [selectedVideo?.id, selectedVideo?.status, currentUser]);
 
   // Handle external seek requests (e.g. from share links)
@@ -289,12 +314,23 @@ export const ReviewModal: React.FC = () => {
   };
 
   const handleSeek = (seconds: number) => {
-    const clamped = Math.max(0, Math.min(seconds, durationRef.current));
+    const mediaDuration = videoRef.current?.duration;
+    const knownDuration = Number.isFinite(mediaDuration) && mediaDuration && mediaDuration > 0
+      ? mediaDuration
+      : durationRef.current;
+    const clamped = Math.max(0, knownDuration > 0 ? Math.min(seconds, knownDuration) : seconds);
     currentTimeRef.current = clamped;
     setCurrentTime(clamped);
 
     if (videoRef.current) {
-      videoRef.current.currentTime = clamped;
+      if (videoRef.current.readyState >= 1) {
+        videoRef.current.currentTime = clamped;
+        pendingSeekRef.current = null;
+      } else {
+        pendingSeekRef.current = clamped;
+      }
+    } else {
+      pendingSeekRef.current = clamped;
     }
   };
 
@@ -315,12 +351,7 @@ export const ReviewModal: React.FC = () => {
   const handleVerdictClick = (verdict: 'APPROVED' | 'REJECTED' | 'PENDING') => {
     if (!selectedVideo) return;
 
-    // If viewer, auto-switch to reviewer so inspection is immediately active
-    if (currentUser.role === 'VIEWER') {
-      switchRole('REVIEWER');
-    }
-
-    const author = reviewerName.trim() || currentUser.name.split(' ')[0];
+    const author = reviewerName.trim() || '검수자';
     setSelectedVerdict(verdict);
 
     // 1. Immediately update video status in state and backend
@@ -362,19 +393,14 @@ export const ReviewModal: React.FC = () => {
     e.preventDefault();
     if (!commentText.trim()) return;
 
-    if (currentUser.role === 'VIEWER') {
-      alert('뷰어(Viewer) 계정은 읽기 전용으로 검수 의견을 등록할 수 없습니다. 상단에서 검수자(Reviewer) 역할로 전환해 주세요.');
-      return;
-    }
-
     const stampSec = includeTimestamp ? Math.round(currentTime) : 0;
     const stampFormatted = includeTimestamp ? formatTime(stampSec) : '--:--';
 
     addReviewComment(
       selectedVideo.id,
       {
-        author: reviewerName || currentUser.name.split(' ')[0],
-        role: currentUser.role,
+        author: reviewerName.trim() || '검수자',
+        role: 'REVIEWER',
         timestampSeconds: stampSec,
         timestampFormatted: stampFormatted,
         verdict: selectedVerdict,
@@ -482,262 +508,6 @@ export const ReviewModal: React.FC = () => {
     e.target.value = '';
   };
 
-  const getRealisticLectureSubtitles = (): SubtitleEntry[] => {
-    const combined = `${selectedVideo?.weekTitle || ''} ${selectedVideo?.sessionTitle || ''}`.toLowerCase();
-
-    if (combined.includes('esg') || combined.includes('bio') || combined.includes('dhc') || combined.includes('health')) {
-      return [
-        {
-          id: 1,
-          startTime: '00:00',
-          endTime: '00:08',
-          startSeconds: 0,
-          endSeconds: 8,
-          textKo: '안녕하십니까? 전문대학 평생직업교육 혁신과 ESG 생태계 조성입니다.',
-          textEn: 'Hello. Welcome to Vocational Education Innovation and ESG Ecosystem Creation.'
-        },
-        {
-          id: 2,
-          startTime: '00:08',
-          endTime: '00:22',
-          startSeconds: 8,
-          endSeconds: 22,
-          textKo: '오늘은 ESG 마인드 없이는 기업의 지속 가능한 성장도 불가능하다는 핵심 주제를 다루겠습니다.',
-          textEn: 'Today we discuss the core thesis: sustainable corporate growth is impossible without an ESG mindset.'
-        },
-        {
-          id: 3,
-          startTime: '00:22',
-          endTime: '00:40',
-          startSeconds: 22,
-          endSeconds: 40,
-          textKo: '한광식 교수와 함께 Bio Health 산업 현장의 실질적인 사례를 입체적으로 점검해 보겠습니다.',
-          textEn: 'Together with Professor Kwang-Sik Han, we will examine practical cases across the Bio Health industry.'
-        },
-        {
-          id: 4,
-          startTime: '00:40',
-          endTime: '01:02',
-          startSeconds: 40,
-          endSeconds: 62,
-          textKo: '환경(E), 사회적 책임(S), 투명한 지배구조(G)는 이제 단순한 권고사항이 아닌 기업 생존의 필수 지표입니다.',
-          textEn: 'Environment (E), Social Responsibility (S), and Transparent Governance (G) are now indispensable survival metrics.'
-        },
-        {
-          id: 5,
-          startTime: '01:02',
-          endTime: '01:30',
-          startSeconds: 62,
-          endSeconds: 90,
-          textKo: '특히 바이오 헬스케어 분야는 연구 윤리와 임상 데이터 신뢰성, 공급망 ESG 실사가 기업 가치를 직접 결정합니다.',
-          textEn: 'Particularly in bio healthcare, research ethics, clinical data credibility, and supply chain ESG audits determine enterprise valuation.'
-        },
-        {
-          id: 6,
-          startTime: '01:30',
-          endTime: '02:05',
-          startSeconds: 90,
-          endSeconds: 125,
-          textKo: '글로벌 공시 기준인 GRI Standards와 K-ESG 가이드라인의 핵심 프레임워크를 슬라이드와 함께 확인해 보겠습니다.',
-          textEn: 'Let us inspect the core frameworks of global disclosure standards including GRI Standards and K-ESG guidelines.'
-        },
-        {
-          id: 7,
-          startTime: '02:05',
-          endTime: '02:45',
-          startSeconds: 125,
-          endSeconds: 165,
-          textKo: 'Scope 1, 2, 3 온실가스 배출량 산정과 탄소중립 로드맵 수립에 관한 주요 대학-기업 연계 사례를 분석합니다.',
-          textEn: 'We analyze Scope 1, 2, and 3 greenhouse gas inventories and carbon neutrality roadmaps from industry-academia partnerships.'
-        },
-        {
-          id: 8,
-          startTime: '02:45',
-          endTime: '03:30',
-          startSeconds: 165,
-          endSeconds: 210,
-          textKo: '지역사회 보건 향상 및 상생 협력 프로그램(S)을 통해 사회적 가치를 창출하는 모델을 고찰하겠습니다.',
-          textEn: 'We review models generating social value through community healthcare enhancement and shared growth programs.'
-        },
-        {
-          id: 9,
-          startTime: '03:30',
-          endTime: '04:20',
-          startSeconds: 210,
-          endSeconds: 260,
-          textKo: '이사회 독립성과 감사 위원회의 전문성을 강화하는 윤리 거버넌스(G) 구축 방안을 다룹니다.',
-          textEn: 'We discuss constructing ethical governance that reinforces board independence and audit committee expertise.'
-        },
-        {
-          id: 10,
-          startTime: '04:20',
-          endTime: '05:15',
-          startSeconds: 260,
-          endSeconds: 315,
-          textKo: '현장 실무자가 지속가능경영 보고서를 작성할 때 반드시 준수해야 할 정량적 KPI 설정 원칙입니다.',
-          textEn: 'These are quantitative KPI principles practitioners must follow when preparing sustainability reports.'
-        },
-        {
-          id: 11,
-          startTime: '05:15',
-          endTime: '06:10',
-          startSeconds: 315,
-          endSeconds: 370,
-          textKo: '지금까지 살펴본 ESG 핵심 요소를 바탕으로 현업에서의 단계별 적용 전략을 점검해 보시기 바랍니다.',
-          textEn: 'Based on the ESG principles covered today, please review your staged execution strategy in the workplace.'
-        },
-        {
-          id: 12,
-          startTime: '06:10',
-          endTime: '07:00',
-          startSeconds: 370,
-          endSeconds: 420,
-          textKo: '다음 차시에서는 Bio Health 기업의 실제 ESG 평가 대응 및 글로벌 인증 실무를 이어가겠습니다.',
-          textEn: 'In the next session, we will continue with practical responses to ESG ratings and global certification audits.'
-        }
-      ];
-    }
-
-    if (combined.includes('전환') || combined.includes('dx') || combined.includes('일자리') || combined.includes('inha') || combined.includes('syu')) {
-      return [
-        {
-          id: 1,
-          startTime: '00:00',
-          endTime: '00:08',
-          startSeconds: 0,
-          endSeconds: 8,
-          textKo: '안녕하십니까. 디지털 전환(DX)과 일자리 환경 변화 강의입니다.',
-          textEn: 'Hello. Welcome to the lecture on Digital Transformation (DX) and Workforce Changes.'
-        },
-        {
-          id: 2,
-          startTime: '00:08',
-          endTime: '00:24',
-          startSeconds: 8,
-          endSeconds: 24,
-          textKo: '디지털 기술의 융합으로 인해 전통적인 산업 현장의 직무 구조가 급변하고 있습니다.',
-          textEn: 'The convergence of digital technologies is rapidly transforming job structures in traditional industries.'
-        },
-        {
-          id: 3,
-          startTime: '00:24',
-          endTime: '00:45',
-          startSeconds: 24,
-          endSeconds: 45,
-          textKo: '데이터 역량과 신기술 적응력을 강화하기 위한 실천적 역량 로드맵을 함께 살펴보겠습니다.',
-          textEn: 'Let us examine an actionable competency roadmap to strengthen data literacy and tech adaptability.'
-        },
-        {
-          id: 4,
-          startTime: '00:45',
-          endTime: '01:10',
-          startSeconds: 45,
-          endSeconds: 70,
-          textKo: '자동화 시스템 및 인공지능 도구가 각 직군별 업무 생산성에 미치는 실질적인 영향을 분석합니다.',
-          textEn: 'We analyze the practical impact of automation systems and AI tools on productivity across job families.'
-        },
-        {
-          id: 5,
-          startTime: '01:10',
-          endTime: '01:40',
-          startSeconds: 70,
-          endSeconds: 100,
-          textKo: '직무 재설계(Reskilling & Upskilling) 프로그램을 조직 차원에서 제도화한 우수 사례입니다.',
-          textEn: 'Here are best practices where organizations institutionalized reskilling and upskilling programs.'
-        },
-        {
-          id: 6,
-          startTime: '01:40',
-          endTime: '02:15',
-          startSeconds: 100,
-          endSeconds: 135,
-          textKo: '변화하는 고용 환경에 선제적으로 대응할 수 있는 전문 인재 양성 체계를 점검하겠습니다.',
-          textEn: 'We will inspect professional talent development systems that proactively adapt to the evolving workforce.'
-        }
-      ];
-    }
-
-    if (combined.includes('가상자산') || combined.includes('온체인') || combined.includes('foren') || combined.includes('자금세탁')) {
-      return [
-        {
-          id: 1,
-          startTime: '00:00',
-          endTime: '00:10',
-          startSeconds: 0,
-          endSeconds: 10,
-          textKo: '가상자산 추적과 분석 심화 2주차 온체인 자금세탁의 산업화입니다.',
-          textEn: 'Welcome to Advanced Cryptocurrency Tracking and Analysis: The Industrialization of On-Chain Laundering.'
-        },
-        {
-          id: 2,
-          startTime: '00:10',
-          endTime: '00:26',
-          startSeconds: 10,
-          endSeconds: 26,
-          textKo: '온체인 분산원장의 트랜잭션 플로우를 추적하여 비정상 흐름을 식별하는 기법을 실습합니다.',
-          textEn: 'We practice tracking transaction flows on distributed ledgers to detect anomalous patterns.'
-        },
-        {
-          id: 3,
-          startTime: '00:26',
-          endTime: '00:50',
-          startSeconds: 26,
-          endSeconds: 50,
-          textKo: '믹싱 서비스와 해외 미등록 거래소로 이어지는 다중 홉(Multi-hop) 이동 패턴을 그래프로 도식화합니다.',
-          textEn: 'We graph multi-hop transfer patterns routed through mixing services and unregistered offshore exchanges.'
-        },
-        {
-          id: 4,
-          startTime: '00:50',
-          endTime: '01:20',
-          startSeconds: 50,
-          endSeconds: 80,
-          textKo: '지갑 주소 클러스터링 알고리즘을 활용하여 실소유자 식별 확률을 극대화하는 포렌식 기법을 분석합니다.',
-          textEn: 'We analyze forensic clustering algorithms that maximize the probability of identifying true beneficial owners.'
-        }
-      ];
-    }
-
-    return [
-      {
-        id: 1,
-        startTime: '00:00',
-        endTime: '00:08',
-        startSeconds: 0,
-        endSeconds: 8,
-        textKo: `안녕하십니까? ${selectedVideo?.sessionTitle || '강의'} 학습을 시작하겠습니다.`,
-        textEn: `Hello. Let us begin the study of "${selectedVideo?.sessionTitle || 'Lecture'}".`
-      },
-      {
-        id: 2,
-        startTime: '00:08',
-        endTime: '00:22',
-        startSeconds: 8,
-        endSeconds: 22,
-        textKo: '이번 차시의 핵심 학습 목표와 주요 개념을 체계적으로 점검해 보겠습니다.',
-        textEn: 'Let us systematically review the key learning objectives and core concepts for this session.'
-      },
-      {
-        id: 3,
-        startTime: '00:22',
-        endTime: '00:40',
-        startSeconds: 22,
-        endSeconds: 40,
-        textKo: '이론적 배경과 현장 실무 적용 사례를 연계하여 종합적인 이해도를 높이겠습니다.',
-        textEn: 'We will connect theoretical foundations with field applications to build comprehensive understanding.'
-      },
-      {
-        id: 4,
-        startTime: '00:40',
-        endTime: '01:05',
-        startSeconds: 40,
-        endSeconds: 65,
-        textKo: '제시된 실습 과제와 핵심 평가 지표를 확인하시고 본격적인 실무 분석으로 넘어가겠습니다.',
-        textEn: 'Please review the practical assignments and core evaluation metrics before we proceed.'
-      }
-    ];
-  };
-
   const handleSaveSubtitleRow = (subId: number) => {
     if (!selectedVideo) return;
     const updated = selectedVideo.subtitles.map(s =>
@@ -748,51 +518,80 @@ export const ReviewModal: React.FC = () => {
   };
 
   const handleGenerateAiSubtitles = async () => {
+    const video = selectedVideo;
+    if (!video) return;
+    if (!video.s3Key && !video.videoUrl) {
+      setAiGenError('AI 분석을 시작할 실제 영상 파일이 없습니다. 먼저 원본 영상을 업로드해 주세요.');
+      return;
+    }
+
     setIsGeneratingAi(true);
     setAiGenError(null);
-
+    setAiProgress('원본 영상과 분석 작업을 준비하고 있습니다.');
     try {
-      const res = await fetch('/api/ai/subtitles', {
+      const startResponse = await fetch('/api/ai/subtitles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          videoTitle: selectedVideo.weekTitle,
-          sessionTitle: selectedVideo.sessionTitle,
-          duration: selectedVideo.duration,
-          targetLanguage: 'en'
+          videoTitle: video.weekTitle,
+          sessionTitle: video.sessionTitle,
+          fileName: video.fileName,
+          duration: video.duration,
+          s3Key: video.s3Key,
+          videoUrl: video.videoUrl,
+          mimeType: video.mimeType,
+          sizeBytes: video.sizeBytes
         })
       });
+      const startData = await startResponse.json().catch(() => ({}));
+      if (!startResponse.ok) throw new Error(startData.error || '영상 분석을 시작하지 못했습니다.');
+      if (!startData.jobToken) throw new Error('분석 작업을 추적할 수 있는 토큰을 받지 못했습니다.');
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-
-      let subsToApply: SubtitleEntry[] = [];
-      if (data.subtitles && Array.isArray(data.subtitles) && data.subtitles.length > 0) {
-        subsToApply = data.subtitles;
-      } else {
-        subsToApply = getRealisticLectureSubtitles();
+      setAiProgress('실제 강의 음성과 화면을 분석하고 있습니다. 영상 길이에 따라 시간이 걸릴 수 있습니다.');
+      let completed = false;
+      for (let attempt = 0; attempt < 240; attempt += 1) {
+        await new Promise(resolve => window.setTimeout(resolve, 5000));
+        const statusResponse = await fetch('/api/ai/subtitles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'status', jobToken: startData.jobToken, duration: video.duration })
+        });
+        const statusData = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok) throw new Error(statusData.error || 'AI 분석 진행 상태를 가져오지 못했습니다.');
+        if (statusData.status === 'completed') {
+          const analysis = statusData.analysis;
+          const subtitles: SubtitleEntry[] = Array.isArray(analysis?.segments)
+            ? analysis.segments.map((segment: SubtitleEntry, index: number) => ({ ...segment, id: index + 1 }))
+            : [];
+          if (!subtitles.length) throw new Error('실제 음성에서 생성된 자막 구간이 없습니다.');
+          updateVideoSubtitles(video.id, subtitles);
+          updateVideoAiAnalysis(video.id, {
+            summary: String(analysis.summary || ''),
+            keyTerms: Array.isArray(analysis.keyTerms) ? analysis.keyTerms : [],
+            uncertaintyNotes: Array.isArray(analysis.uncertaintyNotes) ? analysis.uncertaintyNotes : [],
+            model: String(statusData.model || startData.model || 'Gemini'),
+            analyzedAt: new Date().toISOString()
+          });
+          setAiProgress(`분석 완료 · ${subtitles.length}개 자막 구간`);
+          setRightTab('aiSubtitles');
+          completed = true;
+          break;
+        }
+        if (statusData.status === 'failed' || statusData.status === 'cancelled') {
+          throw new Error(statusData.error || 'AI 분석이 완료되지 않았습니다.');
+        }
+        if (attempt > 0 && attempt % 12 === 0) {
+          setAiProgress('아직 분석 중입니다. 실제 발화의 타임코드와 자막을 확인하고 있습니다.');
+        }
       }
-
-      updateVideoSubtitles(selectedVideo.id, subsToApply);
-      setVerdictNotice({
-        type: 'APPROVED',
-        title: '강의 맞춤 AI 최고품질 자막이 생성되었습니다.',
-        desc: `총 ${subsToApply.length}개 타임코드 구간별 전문 강의 스크립트 및 영문 번역이 실시간 동기화되었습니다.`
-      });
-    } catch (err: any) {
-      console.warn('Backend subtitle API note, applying domain-accurate lecture transcript:', err);
-      const realisticSubs = getRealisticLectureSubtitles();
-      updateVideoSubtitles(selectedVideo.id, realisticSubs);
-      setVerdictNotice({
-        type: 'APPROVED',
-        title: '강의 맞춤 전문 스크립트 자막이 생성되었습니다.',
-        desc: `총 ${realisticSubs.length}개 타임코드 구간별 전문 강의 스크립트 및 영문 번역이 반영되었습니다.`
-      });
+      if (!completed) throw new Error('분석 시간이 길어져 대기 상태를 종료했습니다. 자막 결과가 저장되지 않았습니다. 다시 시도해 주세요.');
+    } catch (error) {
+      setAiGenError(error instanceof Error ? error.message : '실제 영상 AI 분석에 실패했습니다.');
+      setAiProgress('');
     } finally {
       setIsGeneratingAi(false);
     }
   };
-
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
   return (
@@ -859,11 +658,11 @@ export const ReviewModal: React.FC = () => {
                     allowFullScreen
                   />
                 </div>
-              ) : !useCanvasFallback ? (
+              ) : !useCanvasFallback && resolvedPlaybackUrl ? (
                 <video
                   ref={videoRef}
                   key={selectedVideo.id}
-                  src={selectedVideo.videoUrl}
+                  src={resolvedPlaybackUrl}
                   crossOrigin="anonymous"
                   preload="auto"
                   className="w-full h-full object-contain cursor-pointer select-none"
@@ -884,6 +683,13 @@ export const ReviewModal: React.FC = () => {
                       const d = videoRef.current.duration || selectedVideo.duration || 749;
                       setDuration(d);
                       durationRef.current = d;
+                      if (pendingSeekRef.current !== null) {
+                        const target = Math.max(0, Math.min(pendingSeekRef.current, d));
+                        videoRef.current.currentTime = target;
+                        currentTimeRef.current = target;
+                        setCurrentTime(target);
+                        pendingSeekRef.current = null;
+                      }
                     }
                   }}
                   onPlay={() => {
@@ -900,6 +706,21 @@ export const ReviewModal: React.FC = () => {
                   }}
                   playsInline
                 />
+              ) : !useCanvasFallback ? (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-slate-950 text-center px-6">
+                  {playbackUrlError ? (
+                    <>
+                      <AlertCircle className="w-7 h-7 text-rose-400" />
+                      <p className="text-sm font-semibold text-white">영상을 재생할 수 없습니다.</p>
+                      <p className="max-w-md text-xs text-slate-400">{playbackUrlError}</p>
+                    </>
+                  ) : (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                      <p className="text-sm font-semibold text-white">공유된 강의 영상을 준비하고 있습니다.</p>
+                    </>
+                  )}
+                </div>
               ) : (
                 <canvas
                   ref={canvasRef}
@@ -913,7 +734,7 @@ export const ReviewModal: React.FC = () => {
               )}
 
               {/* Center Play overlay button when paused (for native/canvas) */}
-              {!sourceInfo.isExternal && !isPlaying && (
+              {!sourceInfo.isExternal && !isPlaying && (resolvedPlaybackUrl || useCanvasFallback) && (
                 <button
                   type="button"
                   onClick={handlePlayPause}
@@ -1081,24 +902,10 @@ export const ReviewModal: React.FC = () => {
               )}
 
               {/* Reviewer & Verdict controls matching screenshot */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {/* 검수자 Input & Role Check */}
+              <div className="grid grid-cols-1 gap-4 pt-1">
+                {/* 검수자 이름은 실제 작업자가 직접 입력합니다. */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-slate-800">
-                      {t.reviewer}
-                    </label>
-                    {currentUser.role !== 'REVIEWER' && currentUser.role !== 'ADMIN' && (
-                      <button
-                        type="button"
-                        onClick={() => switchRole('REVIEWER')}
-                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition-colors"
-                        title="검수자(Reviewer) 권한으로 전환"
-                      >
-                        ⚡ 검수자 권한 활성화
-                      </button>
-                    )}
-                  </div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1.5">{t.reviewer}</label>
                   <input
                     type="text"
                     value={reviewerName}
@@ -1140,7 +947,7 @@ export const ReviewModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleVerdictClick('APPROVED')}
-                      className={`py-2 px-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
+                      className={`min-h-11 py-2 px-2 whitespace-nowrap rounded-xl text-xs sm:text-sm font-bold transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
                         selectedVerdict === 'APPROVED'
                           ? 'bg-emerald-600 text-white border-2 border-emerald-600 ring-4 ring-emerald-500/20 shadow-md scale-[1.02]'
                           : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50/40 shadow-2xs'
@@ -1155,7 +962,7 @@ export const ReviewModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleVerdictClick('REJECTED')}
-                      className={`py-2 px-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
+                      className={`min-h-11 py-2 px-2 whitespace-nowrap rounded-xl text-xs sm:text-sm font-bold transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
                         selectedVerdict === 'REJECTED'
                           ? 'bg-rose-600 text-white border-2 border-rose-600 ring-4 ring-rose-500/20 shadow-md scale-[1.02]'
                           : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-rose-500 hover:text-rose-700 hover:bg-rose-50/40 shadow-2xs'
@@ -1170,7 +977,7 @@ export const ReviewModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleVerdictClick('PENDING')}
-                      className={`py-2 px-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
+                      className={`min-h-11 py-2 px-2 whitespace-nowrap rounded-xl text-xs sm:text-sm font-bold transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
                         selectedVerdict === 'PENDING'
                           ? 'bg-slate-800 text-white border-2 border-slate-800 ring-4 ring-slate-700/20 shadow-md scale-[1.02]'
                           : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-slate-500 hover:text-slate-900 hover:bg-slate-100 shadow-2xs'
@@ -1347,7 +1154,7 @@ export const ReviewModal: React.FC = () => {
                                 {rev.verdict}
                               </span>
 
-                              {(currentUser.role === 'ADMIN' || currentUser.name.startsWith(rev.author)) && (
+                              {(currentUser.role === 'ADMIN' || (reviewerName.trim() !== '' && reviewerName.trim().startsWith(rev.author))) && (
                                 <button
                                   onClick={() => deleteReviewComment(selectedVideo.id, rev.id)}
                                   className="text-slate-400 hover:text-red-600 p-0.5 rounded transition-colors"
@@ -1396,7 +1203,7 @@ export const ReviewModal: React.FC = () => {
                       <span>{t.aiSubtitleTab}</span>
                     </h4>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {language === 'ko' ? '차시별 전문 강의 스크립트 생성 및 SRT/VTT 파일 직접 연동' : 'Accurate lecture transcripts and SRT/VTT file import'}
+                      {language === 'ko' ? '실제 강의 음성을 전사해 타임코드 자막과 분석 요약을 생성합니다.' : 'Transcribe the actual lecture audio into timed subtitles and an analysis summary.'}
                     </p>
                   </div>
 
@@ -1416,8 +1223,8 @@ export const ReviewModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleGenerateAiSubtitles}
-                      disabled={isGeneratingAi}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                      disabled={isGeneratingAi || (!selectedVideo.s3Key && !selectedVideo.videoUrl?.startsWith('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/'))}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       {isGeneratingAi ? (
                         <>
@@ -1433,6 +1240,31 @@ export const ReviewModal: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {(aiProgress || aiGenError) && (
+                  <div role={aiGenError ? 'alert' : 'status'} className={'mb-3 p-3 rounded-lg border text-xs ' + (aiGenError ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-blue-200 bg-blue-50 text-blue-800')}>
+                    <div className="flex items-start gap-2">
+                      {aiGenError ? <AlertCircle className="w-4 h-4 shrink-0" /> : isGeneratingAi ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+                      <span>{aiGenError || aiProgress}</span>
+                    </div>
+                  </div>
+                )}
+
+                {!selectedVideo.s3Key && !selectedVideo.videoUrl?.startsWith('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/') && (
+                  <p className="mb-3 p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-800">
+                    AI 분석은 업로드한 실제 영상 파일에서만 실행할 수 있습니다. 외부 링크 영상은 원본 파일로 등록해 주세요. AI는 강의 제목만 보고 자막을 만들어내지 않습니다.
+                  </p>
+                )}
+
+                {selectedVideo.aiAnalysis && (
+                  <section className="mb-3 p-3.5 rounded-xl border border-violet-200 bg-violet-50/70">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-violet-900 mb-1.5"><Sparkles className="w-3.5 h-3.5" />실제 영상 AI 분석 요약</div>
+                    <p className="text-xs leading-relaxed text-slate-700">{selectedVideo.aiAnalysis.summary || '요약 정보가 없습니다.'}</p>
+                    {selectedVideo.aiAnalysis.keyTerms.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{selectedVideo.aiAnalysis.keyTerms.map((term, index) => <span key={term + index} className="px-2 py-0.5 rounded-full bg-white border border-violet-200 text-[10px] font-semibold text-violet-800">{term}</span>)}</div>}
+                    {selectedVideo.aiAnalysis.uncertaintyNotes.length > 0 && <div className="mt-2 pt-2 border-t border-violet-200 text-[11px] text-amber-800"><strong>확인 필요:</strong> {selectedVideo.aiAnalysis.uncertaintyNotes.join(' · ')}</div>}
+                    <div className="mt-2 text-[10px] text-slate-500">{selectedVideo.aiAnalysis.model} · {new Date(selectedVideo.aiAnalysis.analyzedAt).toLocaleString()}</div>
+                  </section>
+                )}
 
                 {/* Subtitles Export Toolbar */}
                 {selectedVideo.subtitles.length > 0 && (
@@ -1492,6 +1324,7 @@ export const ReviewModal: React.FC = () => {
                           </button>
 
                           <div className="flex items-center gap-2">
+                            {sub.confidence && <span className={'px-1.5 py-0.5 rounded text-[10px] font-bold ' + (sub.confidence === 'high' ? 'bg-emerald-100 text-emerald-700' : sub.confidence === 'low' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800')}>{sub.confidence === 'high' ? '높은 신뢰도' : sub.confidence === 'low' ? '확인 필요' : '보통 신뢰도'}</span>}
                             {editingSubId === sub.id ? (
                               <button
                                 type="button"
@@ -1534,6 +1367,7 @@ export const ReviewModal: React.FC = () => {
                         {sub.textEn && (
                           <p className="text-blue-700 text-xs mt-1 font-normal opacity-90">{sub.textEn}</p>
                         )}
+                        {sub.uncertaintyNote && <p className="mt-1 text-[11px] text-rose-700">확인 필요: {sub.uncertaintyNote}</p>}
                       </div>
                     ))
                   )}

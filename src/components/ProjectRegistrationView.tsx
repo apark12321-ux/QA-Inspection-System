@@ -1,20 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { VideoSession, ProjectItem } from '../types';
+import { inspectVideoDuration, uploadVideoFile } from '../utils/s3Storage';
+import { newFirestoreId } from '../utils/firebaseStore';
 import {
   Play,
-  Edit2,
-  Trash2,
-  Share2,
   Upload,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  FileVideo,
-  Link as LinkIcon,
   Check,
   Globe,
-  Paperclip,
   X
 } from 'lucide-react';
 
@@ -32,6 +24,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
     addSessionsToProject,
     setSelectedVideo,
     openShareModal,
+    deleteVideo,
     videos,
     addNewVideo,
     setCurrentProjectSlug,
@@ -44,41 +37,64 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
 
   // Step 2: 주차명 등록
   const [selectedProjForWeek, setSelectedProjForWeek] = useState<string>(projects[0]?.id || '');
-  const [weekInputLines, setWeekInputLines] = useState('1주차\n2주차\n3주차');
+  const [weekInputLines, setWeekInputLines] = useState('');
 
   // Step 3: 차시명 등록
   const [selectedProjForSession, setSelectedProjForSession] = useState<string>(projects[0]?.id || '');
   const [selectedWeekForSession, setSelectedWeekForSession] = useState<string>('all');
-  const [sessionInputLines, setSessionInputLines] = useState('1차시 스마트팜 개요\n2차시 센서와 제어\n3차시 데이터 분석 기초');
+  const [sessionInputLines, setSessionInputLines] = useState('');
 
   // Step 4: 동영상 업로드
   const [uploadProjId, setUploadProjId] = useState<string>(projects[0]?.id || '');
   const [uploadWeekFilter, setUploadWeekFilter] = useState<string>('none');
-  const [uploadDefaultSession, setUploadDefaultSession] = useState<string>('디지털 전환(DX)과 일자리 환경 변화');
+  const [uploadDefaultSession, setUploadDefaultSession] = useState<string>('');
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
   const [externalUrl, setExternalUrl] = useState('');
   const [externalTitle, setExternalTitle] = useState('');
   const [externalDuration, setExternalDuration] = useState('600');
   const [dragActive, setDragActive] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; size: string }[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Statistics matching Screenshot 2 (프로젝트 17, 주차 14, 차시 85, 동영상 83)
   const totalProjects = projects.length;
-  const totalWeeks = 14;
-  const totalSessions = 85;
-  const totalVideos = 83;
+  const totalWeeks = projects.reduce((total, project) => total + (project.weekCount || project.weeks?.length || 0), 0);
+  const totalSessions = projects.reduce((total, project) => total + (project.sessionCount || project.sessions?.length || 0), 0);
+  const totalVideos = videos.length;
+
+  useEffect(() => {
+    if (!uploadProjId && projects.length) setUploadProjId(projects[0].id);
+  }, [uploadProjId, projects]);
+
+  useEffect(() => {
+    if (!projects.length) return;
+    const firstProjectId = projects[0].id;
+    if (!projects.some(project => project.id === selectedProjForWeek)) setSelectedProjForWeek(firstProjectId);
+    if (!projects.some(project => project.id === selectedProjForSession)) setSelectedProjForSession(firstProjectId);
+  }, [projects, selectedProjForSession, selectedProjForWeek]);
+
+  useEffect(() => {
+    const project = projects.find(item => item.id === uploadProjId);
+    if (!project) return;
+    const firstSession = project.sessions?.[0] || project.weeks?.[0]?.sessions[0];
+    if (firstSession && !uploadDefaultSession) setUploadDefaultSession(firstSession.title);
+  }, [projects, uploadDefaultSession, uploadProjId]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 2500);
   };
 
-  const handleCopyLink = (alias: string) => {
-    const fullUrl = `${window.location.origin}/${alias}`;
-    navigator.clipboard.writeText(fullUrl);
-    showToast(`링크 복사됨: /${alias}`);
+  const handleCopyLink = async (alias: string) => {
+    const fullUrl = new URL('/' + encodeURIComponent(alias), window.location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      showToast(`프로젝트 링크 복사됨: /${alias}`);
+    } catch {
+      showToast('브라우저에서 복사를 허용하지 않았습니다. 주소를 직접 복사해 주세요.');
+    }
   };
 
   const handleGoToProject = (alias: string) => {
@@ -116,58 +132,109 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const newItems = Array.from(e.dataTransfer.files).map(file => ({
-        name: file.name,
-        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-      }));
-      setUploadedFiles(prev => [...prev, ...newItems]);
+      const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name));
+      if (!files.length) {
+        setUploadError('지원하는 동영상 파일을 선택해 주세요.');
+        return;
+      }
+      setUploadError(null);
+      setUploadedFiles(prev => [...prev, ...files]);
     }
   };
 
-  const handleUploadSubmit = () => {
+  const handleUploadSubmit = async () => {
+    const project = projects.find(item => item.id === uploadProjId);
+    if (!project) {
+      setUploadError('영상을 등록할 프로젝트를 먼저 선택해 주세요.');
+      return;
+    }
+    const lesson = [...(project.sessions || []), ...(project.weeks || []).flatMap(week => week.sessions)]
+      .find(session => session.title === uploadDefaultSession.trim());
+    const weekTitle = lesson?.weekTitle || project.weeks?.find(week => week.id === uploadWeekFilter)?.title || '주차 미지정';
+    const weekId = Number(weekTitle.match(/\d+/)?.[0]) || 1;
+
     if (uploadMode === 'url') {
       if (!externalUrl.trim()) {
-        alert('외부 영상 링크(유튜브, 비메오, 구글 드라이브)를 입력해주세요.');
+        setUploadError('외부 영상 링크를 입력해 주세요.');
         return;
       }
-      const newVideo = addNewVideo({
-        weekId: 1,
-        weekTitle: uploadDefaultSession,
-        sessionTitle: externalTitle.trim() || uploadDefaultSession,
-        fileName: externalTitle.trim() ? `${externalTitle.trim()}.mp4` : 'external_stream.mp4',
-        videoUrl: externalUrl.trim(),
-        duration: parseInt(externalDuration, 10) || 600,
-        fileSize: '외부 스트리밍'
-      });
-      setExternalUrl('');
-      setExternalTitle('');
-      showToast('외부 영상 링크가 등록되었습니다! (트래픽 비용 0원)');
-      setSelectedVideo(newVideo);
+      try {
+        const url = new URL(externalUrl.trim());
+        if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http 또는 https 링크를 입력해 주세요.');
+        const title = externalTitle.trim() || uploadDefaultSession.trim() || '외부 영상';
+        const newVideo = addNewVideo({
+          projectId: project.id,
+          lessonId: lesson?.id,
+          weekId,
+          weekTitle,
+          sessionTitle: title,
+          fileName: title,
+          videoUrl: url.toString(),
+          duration: parseInt(externalDuration, 10) || 0,
+          fileSize: '외부 스트리밍'
+        });
+        setExternalUrl('');
+        setExternalTitle('');
+        setUploadError(null);
+        showToast('외부 영상 링크를 등록했습니다.');
+        setSelectedVideo(newVideo);
+      } catch (error) {
+        setUploadError(error instanceof Error ? error.message : '올바른 영상 링크를 입력해 주세요.');
+      }
       return;
     }
 
     if (uploadedFiles.length === 0) {
-      alert('업로드할 동영상 파일을 선택해주세요.');
+      setUploadError('업로드할 동영상 파일을 선택해 주세요.');
       return;
     }
 
     setIsUploading(true);
-    setTimeout(() => {
-      uploadedFiles.forEach(f => {
-        addNewVideo({
-          weekId: 1,
-          weekTitle: uploadDefaultSession,
-          sessionTitle: uploadDefaultSession,
-          fileName: f.name,
-          videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-          duration: 749,
-          fileSize: f.size
+    setUploadProgress(0);
+    setUploadError(null);
+    let registered = 0;
+    const failures: string[] = [];
+    const failedFiles: File[] = [];
+    for (let index = 0; index < uploadedFiles.length; index += 1) {
+      const file = uploadedFiles[index];
+      const videoId = newFirestoreId('videos');
+      try {
+        const s3Key = await uploadVideoFile({
+          projectName: project.name,
+          lessonName: uploadDefaultSession.trim() || lesson?.title || file.name,
+          fileName: file.name,
+          videoId,
+          file,
+          onProgress: value => setUploadProgress(Math.round(((index + value / 100) / uploadedFiles.length) * 100))
         });
-      });
-      setIsUploading(false);
-      setUploadedFiles([]);
-      showToast(`${uploadedFiles.length}개 영상이 S3에 등록되었습니다.`);
-    }, 1000);
+        const duration = await inspectVideoDuration(file);
+        const title = uploadDefaultSession.trim() || lesson?.title || file.name;
+        addNewVideo({
+          id: videoId,
+          projectId: project.id,
+          lessonId: lesson?.id,
+          s3Key,
+          mimeType: file.type || 'video/mp4',
+          sizeBytes: file.size,
+          weekId,
+          weekTitle,
+          sessionTitle: title,
+          fileName: file.name,
+          videoUrl: '',
+          duration,
+          fileSize: file.size >= 1024 ** 3 ? (file.size / 1024 ** 3).toFixed(1) + ' GB' : Math.max(1, Math.round(file.size / 1024 ** 2)) + ' MB'
+        });
+        registered += 1;
+      } catch (error) {
+        failedFiles.push(file);
+        failures.push(file.name + ': ' + (error instanceof Error ? error.message : '업로드 실패'));
+      }
+    }
+    setIsUploading(false);
+    setUploadedFiles(failedFiles);
+    setUploadProgress(0);
+    if (failures.length) setUploadError(`${registered}개 등록, ${failures.length}개 실패 · ${failures.slice(0, 2).join(' / ')}`);
+    if (registered) showToast(`${registered}개 영상 원본을 저장하고 검수 목록에 등록했습니다.`);
   };
 
   return (
@@ -256,7 +323,9 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                     </span>
                     <button
                       type="button"
-                      onClick={() => deleteProject(proj.id)}
+                      onClick={() => {
+                        if (window.confirm(`'${proj.name}' 프로젝트와 연결된 영상 및 검수 기록을 삭제할까요?`)) deleteProject(proj.id);
+                      }}
                       className="text-slate-400 hover:text-rose-600 ml-0.5 p-0.5 rounded transition-colors"
                       title="프로젝트 삭제"
                     >
@@ -339,7 +408,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                   <label className="block text-[11px] font-bold text-slate-700">프로젝트 선택</label>
                   <select
                     value={selectedProjForSession}
-                    onChange={e => setSelectedProjForSession(e.target.value)}
+                    onChange={e => { setSelectedProjForSession(e.target.value); setSelectedWeekForSession('all'); }}
                     className="w-full px-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
                   >
                     {projects.map(p => (
@@ -358,9 +427,9 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                     className="w-full px-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
                   >
                     <option value="all">전체 주차 (또는 주차 미지정)</option>
-                    <option value="1주차">1주차</option>
-                    <option value="2주차">2주차</option>
-                    <option value="3주차">3주차</option>
+                    {(projects.find(project => project.id === selectedProjForSession)?.weeks || []).map(week => (
+                      <option key={week.id} value={week.id}>{week.title}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -428,9 +497,10 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                     onChange={e => setUploadWeekFilter(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="none">등록된 주차명이 없습니다.</option>
-                    <option value="1">1주차</option>
-                    <option value="2">2주차</option>
+                    <option value="none">주차 미지정</option>
+                    {(projects.find(project => project.id === uploadProjId)?.weeks || []).map(week => (
+                      <option key={week.id} value={week.id}>{week.title}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -480,7 +550,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                     setDragActive(true);
                   }}
                   onDragLeave={() => setDragActive(false)}
-                  onDrop={handleDrop}
+                      onDrop={handleDrop}
                   className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors ${
                     dragActive
                       ? 'border-blue-500 bg-blue-50/40'
@@ -501,11 +571,10 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                     accept="video/*"
                     onChange={e => {
                       if (e.target.files) {
-                        const newItems = Array.from(e.target.files).map(file => ({
-                          name: file.name,
-                          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-                        }));
+                        const newItems = Array.from(e.target.files).filter(file => file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name));
                         setUploadedFiles(prev => [...prev, ...newItems]);
+                        setUploadError(newItems.length ? null : '지원하는 동영상 파일을 선택해 주세요.');
+                        e.target.value = '';
                       }
                     }}
                     className="hidden"
@@ -565,6 +634,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                   onClick={() => {
                     setUploadedFiles([]);
                     setExternalUrl('');
+                    setUploadError(null);
                   }}
                   className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold transition-colors"
                 >
@@ -584,8 +654,11 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
               {uploadedFiles.length > 0 && (
                 <div className="text-xs text-slate-600 font-medium">
                   선택된 파일: <strong className="text-slate-900">{uploadedFiles.length}개</strong>
+                  <div className="mt-1 max-h-20 overflow-y-auto text-[11px] text-slate-500">{uploadedFiles.map((file, index) => <div key={file.name + index}>{file.name} · {(file.size / 1024 ** 2).toFixed(1)} MB</div>)}</div>
                 </div>
               )}
+              {isUploading && <div className="space-y-1.5"><div className="flex justify-between text-xs font-semibold text-blue-800"><span>실제 원본 업로드 중</span><span>{uploadProgress}%</span></div><div className="h-2 rounded-full bg-blue-100 overflow-hidden"><div className="h-full bg-blue-600 transition-all" style={{ width: uploadProgress + '%' }} /></div></div>}
+              {uploadError && <p role="alert" className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2.5">{uploadError}</p>}
             </div>
           </div>
 
@@ -639,12 +712,8 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
           <div className="space-y-4">
             {projects.map(proj => {
               // Get videos belonging to this project
-              const projVideos = videos.filter(
-                v =>
-                  (v.projectId && v.projectId === proj.id) ||
-                  v.fileName.startsWith(proj.alias) ||
-                  v.weekTitle.includes(proj.name.slice(0, 10))
-              );
+              const projVideos = videos.filter(v => v.projectId === proj.id);
+              const projectSessions = proj.sessions || [];
 
               return (
                 <div
@@ -658,9 +727,9 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                         {proj.name}
                       </h3>
                       <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-medium">
-                        <span>차시 {proj.sessionCount || 3}</span>
+                        <span>차시 {proj.sessionCount ?? projectSessions.length}</span>
                         <span>·</span>
-                        <span>동영상 {proj.videoCount || projVideos.length || 2}</span>
+                        <span>동영상 {projVideos.length}</span>
                         <span>·</span>
                         <span className="font-mono text-blue-600 font-bold">/{proj.alias}</span>
                       </div>
@@ -680,18 +749,13 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                         onClick={() => handleGoToProject(proj.alias)}
                         className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-[11px] font-semibold text-slate-700 transition-colors shadow-2xs"
                       >
-                        ✏ 수정
+                        검수 열기
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleCopyLink(proj.alias)}
-                        className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-[11px] font-semibold text-slate-700 transition-colors shadow-2xs"
-                      >
-                        🔗 링크 수정
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteProject(proj.id)}
+                        onClick={() => {
+                          if (window.confirm(`'${proj.name}' 프로젝트와 연결된 영상 및 검수 기록을 삭제할까요?`)) deleteProject(proj.id);
+                        }}
                         className="px-2.5 py-1 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-rose-600 rounded text-[11px] font-semibold transition-colors shadow-2xs"
                       >
                         🗑 프로젝트 삭제
@@ -701,21 +765,8 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
 
                   {/* Sessions & Videos List under Project */}
                   <div className="p-4 space-y-3">
-                    {/* If project has explicit sessions, render them */}
-                    {(proj.sessions && proj.sessions.length > 0 ? proj.sessions : [
-                      {
-                        id: `sess-${proj.id}-01`,
-                        title: '디지털 전환(DX)과 일자리 환경 변화',
-                        videoCount: 1,
-                        videos: projVideos.slice(0, 1)
-                      },
-                      {
-                        id: `sess-${proj.id}-02`,
-                        title: 'Bio Health 산업의 ESG 실행과 사회공헌',
-                        videoCount: 1,
-                        videos: projVideos.slice(1, 2)
-                      }
-                    ]).map((session, sIdx) => (
+                    {/* Render only registered lessons and videos. */}
+                    {projectSessions.length ? projectSessions.map((session, sIdx) => (
                       <div
                         key={session.id || sIdx}
                         className="border border-slate-100 rounded-lg p-3 bg-slate-50/40 space-y-2"
@@ -728,25 +779,11 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                               {sIdx + 1}편
                             </span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              className="text-[11px] text-slate-500 hover:text-slate-800 px-1.5 py-0.5 rounded hover:bg-white"
-                            >
-                              ✏ 수정
-                            </button>
-                            <button
-                              type="button"
-                              className="text-[11px] text-rose-500 hover:text-rose-700 px-1.5 py-0.5 rounded hover:bg-white"
-                            >
-                              🗑 차시 삭제
-                            </button>
-                          </div>
                         </div>
 
                         {/* Videos in this Session */}
                         <div className="space-y-1.5 pt-1">
-                          {(session.videos && session.videos.length > 0 ? session.videos : projVideos.slice(sIdx, sIdx + 1)).map(vid => (
+                          {(session.videos && session.videos.length > 0 ? session.videos : projVideos.filter(video => video.lessonId === session.id || (!video.lessonId && video.sessionTitle === session.title))).map(vid => (
                             <div
                               key={vid.id}
                               className="bg-white border border-slate-200/90 rounded-lg p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
@@ -773,7 +810,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                                 </div>
                               </div>
 
-                              {/* Video Actions: [재생] [수정] [공유] [원본] [삭제] */}
+                              {/* Video Actions */}
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <button
                                   type="button"
@@ -785,12 +822,6 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                                 </button>
                                 <button
                                   type="button"
-                                  className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded text-[11px] font-medium"
-                                >
-                                  ✏ 수정
-                                </button>
-                                <button
-                                  type="button"
                                   onClick={() => openShareModal(vid)}
                                   className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded text-[11px] font-medium"
                                 >
@@ -798,12 +829,9 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                                 </button>
                                 <button
                                   type="button"
-                                  className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded text-[11px] font-medium"
-                                >
-                                  📎 원본
-                                </button>
-                                <button
-                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm(`'${vid.fileName}' 영상과 검수 기록을 삭제할까요?`)) deleteVideo(vid.id);
+                                  }}
                                   className="px-2 py-1 bg-white hover:bg-rose-50 border border-slate-200 text-rose-600 rounded text-[11px] font-medium"
                                 >
                                   🗑 삭제
@@ -813,7 +841,11 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                           ))}
                         </div>
                       </div>
-                    ))}
+                    )) : (
+                      <div className="py-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
+                        등록된 차시가 없습니다. 왼쪽에서 주차와 차시를 먼저 추가해 주세요.
+                      </div>
+                    )}
                   </div>
                 </div>
               );

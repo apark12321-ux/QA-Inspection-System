@@ -1,130 +1,54 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
-import {GoogleGenAI} from '@google/genai';
+import { defineConfig } from 'vite';
+import subtitleHandler from './api/ai/subtitles';
+import { env } from 'node:process';
 
-function apiPlugin() {
+function aiSubtitleApiPlugin() {
   return {
-    name: 'api-ai-subtitles-middleware',
+    name: 'ai-subtitle-api',
     configureServer(server: any) {
-      server.middlewares.use('/api/ai/subtitles', (req: any, res: any) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          return res.end('Method Not Allowed');
+      server.middlewares.use('/api/ai/subtitles', async (request: any, response: any) => {
+        if (request.method !== 'POST') {
+          response.statusCode = 405;
+          response.setHeader('Content-Type', 'application/json');
+          response.end(JSON.stringify({ error: 'POST 요청만 지원합니다.' }));
+          return;
         }
 
-        let body = '';
-        req.on('data', (chunk: any) => {
-          body += chunk;
-        });
-
-        req.on('end', async () => {
-          try {
-            const parsed = body ? JSON.parse(body) : {};
-            const { videoTitle, sessionTitle, duration, targetLanguage = 'en' } = parsed;
-
-            const apiKey = process.env.GEMINI_API_KEY;
-            if (!apiKey) {
-              res.setHeader('Content-Type', 'application/json');
-              return res.end(JSON.stringify({
-                fallback: true,
-                subtitles: [
-                  {
-                    id: 1,
-                    startTime: '00:00',
-                    endTime: '00:06',
-                    startSeconds: 0,
-                    endSeconds: 6,
-                    textKo: `안녕하세요, 학습자 여러분. ${sessionTitle || '강의'}를 시작하겠습니다.`,
-                    textEn: `Hello, learners. Welcome to the session on "${sessionTitle || 'Lecture'}".`
-                  },
-                  {
-                    id: 2,
-                    startTime: '00:07',
-                    endTime: '00:15',
-                    startSeconds: 7,
-                    endSeconds: 15,
-                    textKo: '스토리텔링의 기본 구조에서 모티프(Motif)는 서사의 추진력을 부여합니다.',
-                    textEn: 'In storytelling, motifs drive narrative momentum and character depth.'
-                  }
-                ]
-              }));
+        try {
+          let rawBody = '';
+          for await (const chunk of request) rawBody += chunk.toString();
+          const body = rawBody ? JSON.parse(rawBody) : {};
+          let statusCode = 200;
+          const responseAdapter = {
+            status(code: number) {
+              statusCode = code;
+              return this;
+            },
+            json(payload: unknown) {
+              response.statusCode = statusCode;
+              response.setHeader('Content-Type', 'application/json');
+              response.end(JSON.stringify(payload));
             }
-
-            const ai = new GoogleGenAI({ apiKey });
-            const prompt = `
-당신은 교육 및 기업용 영상 검수 전문 AI 자막 생성기입니다.
-다음 영상 정보를 바탕으로 실시간 타임스탬프와 함께 한국어 원문 자막과 영어(${targetLanguage}) 번역 자막을 생성해주세요.
-- 주제: "${videoTitle || 'AI와 함께 쓰는 스토리텔링 워크숍'}"
-- 차시: "${sessionTitle || '이야기의 뼈대와 모티프'}"
-- 길이: 약 ${Math.round(duration || 749)}초
-
-반드시 다음 JSON 배열만 출력하세요:
-[
-  {
-    "id": 1,
-    "startTime": "00:00",
-    "endTime": "00:06",
-    "startSeconds": 0,
-    "endSeconds": 6,
-    "textKo": "안녕하세요. 이번 차시에서는 스토리텔링의 핵심 뼈대를 살펴봅니다.",
-    "textEn": "Hello. In this session, we will explore the core framework of storytelling."
-  }
-]
-`;
-
-            const response = await ai.models.generateContent({
-              model: 'gemini-3.8-flash',
-              contents: prompt,
-              config: {
-                responseMimeType: 'application/json',
-              }
-            });
-
-            const text = response.text || '[]';
-            const subtitles = JSON.parse(text);
-
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true, subtitles }));
-          } catch (err: any) {
-            console.error('Gemini API error in middleware:', err);
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({
-              fallback: true,
-              subtitles: [
-                {
-                  id: 1,
-                  startTime: '00:00',
-                  endTime: '00:06',
-                  startSeconds: 0,
-                  endSeconds: 6,
-                  textKo: '안녕하세요. 이번 차시 스토리텔링 강의를 시작하겠습니다.',
-                  textEn: 'Hello. We will begin this storytelling session.'
-                }
-              ]
-            }));
-          }
-        });
+          };
+          await subtitleHandler({ method: request.method, body } as any, responseAdapter as any);
+        } catch (error) {
+          response.statusCode = 400;
+          response.setHeader('Content-Type', 'application/json');
+          response.end(JSON.stringify({ error: error instanceof Error ? error.message : '요청 본문을 읽지 못했습니다.' }));
+        }
       });
     }
   };
 }
 
-export default defineConfig(() => {
-  return {
-    plugins: [react(), tailwindcss(), apiPlugin()],
-    resolve: {
-      alias: {
-        '@': path.resolve(import.meta.dirname || '.', '.'),
-      },
-    },
-    server: {
-      port: 3000,
-      host: '0.0.0.0',
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
-    },
-  };
+export default defineConfig({
+  plugins: [react(), tailwindcss(), aiSubtitleApiPlugin()],
+  server: {
+    port: 3000,
+    host: '0.0.0.0',
+    hmr: env.DISABLE_HMR !== 'true',
+    watch: env.DISABLE_HMR === 'true' ? null : {}
+  }
 });

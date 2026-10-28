@@ -34,7 +34,6 @@ export const VideoTable: React.FC = () => {
 
   const t = translations[language];
 
-  // Default active project is Bio Health (dhc26) if none selected, matching Screenshot 1
   const displayedProject = useMemo(() => {
     if (activeProject) return activeProject;
     if (currentProjectSlug) {
@@ -43,25 +42,17 @@ export const VideoTable: React.FC = () => {
       );
       if (match) return match;
     }
-    // Default to Bio Health project matching screenshot 1
-    const defaultBio = projects.find(p => p.alias === 'dhc26') || projects[0];
-    return defaultBio;
+    return projects[0];
   }, [activeProject, currentProjectSlug, projects]);
 
-  const selectedProjectAlias = displayedProject?.alias || 'dhc26';
+  const selectedProjectAlias = displayedProject?.alias || '';
 
   // Get videos for currently displayed project
   const projectVideos = useMemo(() => {
     if (!displayedProject) return videos;
 
-    // First check if videos array has items matching this project
-    const byProjId = videos.filter(
-      v =>
-        (v.projectId && v.projectId === displayedProject.id) ||
-        v.fileName.startsWith(displayedProject.alias) ||
-        v.weekTitle.includes(displayedProject.name.slice(0, 10))
-    );
-    if (byProjId.length > 0) return byProjId;
+    const byProjectId = videos.filter(video => video.projectId === displayedProject.id);
+    if (byProjectId.length > 0) return byProjectId;
 
     // If project has embedded sessions with videos
     if (displayedProject.sessions && displayedProject.sessions.length > 0) {
@@ -69,8 +60,7 @@ export const VideoTable: React.FC = () => {
       if (sessVideos.length > 0) return sessVideos;
     }
 
-    // Fallback: return videos matching alias prefix or all
-    return videos;
+    return [];
   }, [displayedProject, videos]);
 
   const filteredVideos = useMemo(() => {
@@ -92,12 +82,16 @@ export const VideoTable: React.FC = () => {
     setCurrentProjectSlug(alias);
   };
 
-  const handleCopyShareLink = () => {
-    const shareUrl = `${window.location.origin}/${selectedProjectAlias}`;
-    navigator.clipboard.writeText(shareUrl).then(() => {
+  const handleCopyShareLink = async () => {
+    if (!selectedProjectAlias) return;
+    const shareUrl = new URL('/' + encodeURIComponent(selectedProjectAlias), window.location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(shareUrl);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
-    });
+    } catch {
+      setCopiedLink(false);
+    }
   };
 
   const renderStatusBadge = (status: ReviewStatus) => {
@@ -144,10 +138,10 @@ export const VideoTable: React.FC = () => {
           </div>
           <div>
             <h1 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 tracking-tight leading-tight">
-              {displayedProject?.name || 'Bio Health 시대의 ESG와 지속 가능한 성장'}
+              {displayedProject?.name || (language === 'ko' ? '등록된 프로젝트가 없습니다.' : 'No project registered')}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
-              {language === 'ko' ? '전용 검수 주소:' : 'Slug:'} <span className="font-mono text-slate-800 font-semibold">/{selectedProjectAlias}</span> · {language === 'ko' ? `총 ${projectVideos.length}개 차시 검수 대상` : `Total ${projectVideos.length} sessions to review`}
+              {selectedProjectAlias && <>{language === 'ko' ? '프로젝트 검수 주소:' : 'Project review link:'} <span className="font-mono text-slate-800 font-semibold">/{selectedProjectAlias}</span> · </>}{language === 'ko' ? `영상 ${projectVideos.length}개` : `${projectVideos.length} videos`}
             </p>
           </div>
         </div>
@@ -159,6 +153,7 @@ export const VideoTable: React.FC = () => {
             onChange={e => handleSelectProject(e.target.value)}
             className="px-3 py-2 bg-slate-50 hover:bg-white border border-slate-300 rounded-lg text-xs sm:text-sm font-semibold text-slate-800 transition-colors focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[280px] truncate"
           >
+            {projects.length === 0 && <option value="">{language === 'ko' ? '등록된 프로젝트 없음' : 'No projects registered'}</option>}
             {projects.map(p => (
               <option key={p.id} value={p.alias}>
                 {p.name}
@@ -169,6 +164,7 @@ export const VideoTable: React.FC = () => {
           <button
             type="button"
             onClick={handleCopyShareLink}
+            disabled={!selectedProjectAlias}
             className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs sm:text-sm font-semibold transition-all shadow-2xs active:scale-95"
             title={t.shareLink}
           >
@@ -203,7 +199,7 @@ export const VideoTable: React.FC = () => {
             </div>
             
             <div className="text-xs sm:text-sm font-semibold tabular-nums text-slate-500 shrink-0">
-              {t.totalSummary.replace('{count}', String(filteredVideos.length)).replace('{total}', '83')}
+              {t.totalSummary.replace('{count}', String(filteredVideos.length)).replace('{total}', String(projectVideos.length))}
             </div>
           </div>
 
@@ -292,7 +288,7 @@ export const VideoTable: React.FC = () => {
                     {/* 주차 */}
                     <td className="py-3.5 px-4 sm:px-6 text-slate-600 align-middle whitespace-nowrap">
                       <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-semibold text-slate-700">
-                        {video.weekId ? (language === 'ko' ? `${video.weekId}주차` : `Week ${video.weekId}`) : (language === 'ko' ? '1주차' : 'Week 1')}
+                        {video.weekTitle || (language === 'ko' ? '주차 미지정' : 'No week assigned')}
                       </span>
                     </td>
 
