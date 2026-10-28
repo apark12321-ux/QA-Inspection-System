@@ -40,311 +40,452 @@ export const INITIAL_USERS: UserAccount[] = [
 ];
 
 export const INITIAL_VIDEOS: VideoSession[] = [
+  // 1. Bio Health 시대의 ESG와 지속 가능한 성장 (Screenshot 1 Active Dataset)
   {
-    id: 'vid-01',
+    id: 'dhc26_01',
+    projectId: 'proj-bio-esg',
+    weekId: 1,
+    weekTitle: 'Bio Health 시대의 ESG와 지속 가능한 성장',
+    sessionTitle: 'ESG 마인드 없이는 성장도 없다',
+    fileName: 'dhc26_01.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    duration: 3015, // 50:15
+    fileSize: '800 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 19:54',
+    updatedAt: '2026.10.27 19:54',
+    reviewerName: '',
+    reviews: [],
+    subtitles: [
+      {
+        id: 1,
+        startTime: '00:00',
+        endTime: '00:08',
+        startSeconds: 0,
+        endSeconds: 8,
+        textKo: '안녕하십니까? 전문대학 평생직업교육 혁신과 ESG 생태계 조성입니다.',
+        textEn: 'Hello. Welcome to Vocational Education Innovation and ESG Ecosystem Creation.'
+      },
+      {
+        id: 2,
+        startTime: '00:08',
+        endTime: '00:20',
+        startSeconds: 8,
+        endSeconds: 20,
+        textKo: '오늘은 ESG 마인드 없이는 기업의 지속 가능한 성장도 불가능하다는 주제를 다룹니다.',
+        textEn: 'Today we discuss why sustainable growth is impossible without an ESG mindset.'
+      },
+      {
+        id: 3,
+        startTime: '00:20',
+        endTime: '00:35',
+        startSeconds: 20,
+        endSeconds: 35,
+        textKo: '한광식 교수와 함께 Bio Health 산업 현장의 실질적인 사례를 점검해 보겠습니다.',
+        textEn: 'Together with Professor Kwang-Sik Han, we will review practical cases in the Bio Health industry.'
+      },
+      {
+        id: 4,
+        startTime: '00:35',
+        endTime: '00:50',
+        startSeconds: 35,
+        endSeconds: 50,
+        textKo: '환경(E), 사회적 책임(S), 투명한 지배구조(G)가 기업 경쟁력의 필수 지표가 되었습니다.',
+        textEn: 'Environment (E), Social Responsibility (S), and Transparent Governance (G) have become essential metrics.'
+      }
+    ],
+    pipeline: {
+      jobId: 'job-dhc-01',
+      overallProgress: 100,
+      currentStage: '검수 대기 중 (S3 원본 저장 완료)',
+      stages: [
+        { name: 'S3 Multipart Upload', description: 'edutem-video-review 저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '1080p 고화질 트랜스코딩 완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: 'AI 자막 및 번역 인덱싱 완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '검수 대기열 동기화 완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: 'dhc26_02',
+    projectId: 'proj-bio-esg',
+    weekId: 1,
+    weekTitle: 'Bio Health 시대의 ESG와 지속 가능한 성장',
+    sessionTitle: 'ESG와 기업의 사회적 책임',
+    fileName: 'dhc26_02.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+    duration: 2840, // 47:20
+    fileSize: '780 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 19:55',
+    updatedAt: '2026.10.27 19:55',
+    reviews: [],
+    subtitles: [
+      {
+        id: 1,
+        startTime: '00:00',
+        endTime: '00:10',
+        startSeconds: 0,
+        endSeconds: 10,
+        textKo: 'Bio Health 산업에서 사회적 책임(S)과 공급망 상생의 가치입니다.',
+        textEn: 'The value of social responsibility (S) and supply chain co-prosperity in Bio Health.'
+      }
+    ],
+    pipeline: {
+      jobId: 'job-dhc-02',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: 'dhc26_03',
+    projectId: 'proj-bio-esg',
+    weekId: 1,
+    weekTitle: 'Bio Health 시대의 ESG와 지속 가능한 성장',
+    sessionTitle: '지속가능경영 보고서 프레임워크',
+    fileName: 'dhc26_03.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    duration: 3100, // 51:40
+    fileSize: '820 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 19:56',
+    updatedAt: '2026.10.27 19:56',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-dhc-03',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: 'dhc26_04',
+    projectId: 'proj-bio-esg',
+    weekId: 1,
+    weekTitle: 'Bio Health 시대의 ESG와 지속 가능한 성장',
+    sessionTitle: 'Bio Health 산업의 환경경영(E)',
+    fileName: 'dhc26_04.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    duration: 2750,
+    fileSize: '750 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 19:57',
+    updatedAt: '2026.10.27 19:57',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-dhc-04',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: 'dhc26_05',
+    projectId: 'proj-bio-esg',
+    weekId: 1,
+    weekTitle: 'Bio Health 시대의 ESG와 지속 가능한 성장',
+    sessionTitle: 'ESG 거버넌스와 윤리경영(G)',
+    fileName: 'dhc26_05.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+    duration: 2980,
+    fileSize: '790 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 19:58',
+    updatedAt: '2026.10.27 19:58',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-dhc-05',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: 'dhc26_06',
+    projectId: 'proj-bio-esg',
+    weekId: 1,
+    weekTitle: 'Bio Health 시대의 ESG와 지속 가능한 성장',
+    sessionTitle: 'Bio Health 기업의 ESG 평가 대응',
+    fileName: 'dhc26_06.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4',
+    duration: 3050,
+    fileSize: '810 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 19:59',
+    updatedAt: '2026.10.27 19:59',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-dhc-06',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+
+  // 2. 인하대학교 [대학혁신지원사업] 오픈런 (Screenshot 2)
+  {
+    id: 'inha26_pro_01',
+    projectId: 'proj-inha',
+    weekId: 1,
+    weekTitle: '디지털 전환(DX)과 일자리 환경 변화',
+    sessionTitle: '디지털 전환(DX)과 일자리 환경 변화',
+    fileName: 'inha26_pro_01.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    duration: 749,
+    fileSize: '1.6 GB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 09:48',
+    updatedAt: '2026.10.27 09:48',
+    reviewerName: '',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-inha-01',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: 'inha26_pro_02',
+    projectId: 'proj-inha',
+    weekId: 1,
+    weekTitle: 'Bio Health 산업의 ESG 실행과 사회공헌',
+    sessionTitle: 'Bio Health 산업의 ESG 실행과 사회공헌',
+    fileName: 'inha26_pro_02.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+    duration: 620,
+    fileSize: '96.9 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 09:49',
+    updatedAt: '2026.10.27 09:49',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-inha-02',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+
+  // 3. 삼육대학교 SU-MOOC 강의콘텐츠 개발 (Screenshot 2)
+  {
+    id: 'syu26_pro_01',
+    projectId: 'syu26',
+    weekId: 1,
+    weekTitle: '디지털 전환(DX)과 일자리 환경 변화',
+    sessionTitle: '디지털 전환(DX)과 일자리 환경 변화',
+    fileName: 'syu26_pro_01.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    duration: 749,
+    fileSize: '1.6 GB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.21 12:06',
+    updatedAt: '2026.10.21 12:06',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-syu-01',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: 'syu26_pro_02',
+    projectId: 'syu26',
+    weekId: 1,
+    weekTitle: 'Bio Health 산업의 ESG 실행과 사회공헌',
+    sessionTitle: 'Bio Health 산업의 ESG 실행과 사회공헌',
+    fileName: 'syu26_pro_02.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+    duration: 620,
+    fileSize: '96.9 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.21 15:13',
+    updatedAt: '2026.10.21 15:13',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-syu-02',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+
+  // 4. 가상자산 추적과 분석 심화 (Screenshot 2)
+  {
+    id: '26foren04_02_01',
+    projectId: 'proj-forensic',
+    weekId: 2,
+    weekTitle: '온체인 자금세탁의 산업화',
+    sessionTitle: '2025년 불법 자금 규모',
+    fileName: '26foren04_02_01.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    duration: 812,
+    fileSize: '166 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 18:40',
+    updatedAt: '2026.10.27 18:40',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-foren01',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: '26foren04_02_02',
+    projectId: 'proj-forensic',
+    weekId: 2,
+    weekTitle: '온체인 자금세탁의 산업화',
+    sessionTitle: '중국어 기반 자금세탁 네트워크의 부상',
+    fileName: '26foren04_02_02.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+    duration: 734,
+    fileSize: '129 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 18:40',
+    updatedAt: '2026.10.27 18:40',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-foren02',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+
+  // 5. AI와 함께 쓰는 스토리텔링 워크숍 (Screenshot 2)
+  {
+    id: '26story01_01_01',
+    projectId: 'proj-storytelling',
     weekId: 1,
     weekTitle: 'AI 시대, 새로운 스토리텔링의 문법',
-    sessionTitle: '이야기의 뼈대와 모티프(Motif)',
+    sessionTitle: 'Opening',
     fileName: '26story01_01_01.mp4',
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    duration: 749, // 12:29
-    fileSize: '245 MB',
+    duration: 749,
+    fileSize: '60.5 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.27 15:00',
+    updatedAt: '2026.10.27 15:00',
+    reviewerName: '',
+    reviews: [],
+    subtitles: [],
+    pipeline: {
+      jobId: 'job-story-01',
+      overallProgress: 100,
+      currentStage: '검수 대기',
+      stages: [
+        { name: 'S3 Multipart Upload', description: '완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: '26story01_02_02',
+    projectId: 'proj-storytelling',
+    weekId: 2,
+    weekTitle: '이야기의 뼈대와 모티프(Motif)',
+    sessionTitle: '영화 <수학여행> 감상',
+    fileName: '26story01_02_02.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    duration: 840,
+    fileSize: '646 MB',
     status: 'APPROVED',
-    uploadedAt: '2026.10.26 10:15',
-    updatedAt: '2026.10.26 14:20',
+    uploadedAt: '2026.10.26 13:27',
+    updatedAt: '2026.10.26 14:10',
     reviewerName: '이영희',
     reviews: [
       {
-        id: 'rev-101',
+        id: 'rev-st-01',
         author: '이영희',
         role: 'REVIEWER',
         timestampSeconds: 45,
         timestampFormatted: '00:45',
         verdict: 'APPROVED',
-        content: '도입부 인트로 타이틀 모션 및 오디오 싱크 정확함. 전체 강의 흐름 우수하여 최종 승인합니다.',
-        createdAt: '2026.10.26 14:20'
-      }
-    ],
-    subtitles: [
-      {
-        id: 1,
-        startTime: '00:00',
-        endTime: '00:06',
-        startSeconds: 0,
-        endSeconds: 6,
-        textKo: '안녕하세요. AI와 함께 쓰는 스토리텔링 워크숍 첫 번째 차시입니다.',
-        textEn: 'Hello. Welcome to the first session of the Storytelling with AI workshop.'
-      },
-      {
-        id: 2,
-        startTime: '00:07',
-        endTime: '00:15',
-        startSeconds: 7,
-        endSeconds: 15,
-        textKo: '오늘은 모든 서사의 출발점이 되는 이야기의 뼈대와 모티프(Motif)를 살펴보겠습니다.',
-        textEn: 'Today, we will examine the backbone of narrative and motifs that serve as the foundation.'
-      },
-      {
-        id: 3,
-        startTime: '00:16',
-        endTime: '00:25',
-        startSeconds: 16,
-        endSeconds: 25,
-        textKo: '좋은 스토리는 강력한 내적 동기와 이를 상징하는 오브젝트의 반복을 통해 탄생합니다.',
-        textEn: 'A compelling story is born through strong inner motivation and recurring symbolic objects.'
-      }
-    ],
-    pipeline: {
-      jobId: 'job-aws-101',
-      overallProgress: 100,
-      currentStage: '완료 (S3 배포됨)',
-      stages: [
-        { name: 'S3 Multipart Upload', description: '원본 영상 업로드 완료', status: 'done', progress: 100, timestamp: '10:15' },
-        { name: 'AWS MediaConvert', description: '1080p/720p H.264 트랜스코딩', status: 'done', progress: 100, timestamp: '10:18' },
-        { name: 'Gemini AI Subtitles', description: '음성 추출 및 자막/번역 생성', status: 'done', progress: 100, timestamp: '10:20' },
-        { name: 'DynamoDB Indexing', description: '메타데이터 인덱싱 및 배포', status: 'done', progress: 100, timestamp: '10:21' }
-      ]
-    }
-  },
-  {
-    id: 'vid-02',
-    weekId: 1,
-    weekTitle: 'AI 시대, 새로운 스토리텔링의 문법',
-    sessionTitle: '단편 <수학여행>의 서사 전략과 Motif',
-    fileName: '26story01_02_04.mp4',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-    duration: 749, // 12:29 matching the screenshot
-    fileSize: '260 MB',
-    status: 'REJECTED',
-    uploadedAt: '2026.10.26 13:28',
-    updatedAt: '2026.10.26 15:42',
-    reviewerName: '이영희',
-    reviews: [
-      {
-        id: 'rev-201',
-        author: '이영희',
-        role: 'REVIEWER',
-        timestampSeconds: 192,
-        timestampFormatted: '03:12',
-        verdict: 'REJECTED',
-        content: "03:12 하단 자막 오타 발견: '학습' -> '학습 전략'으로 수정 부탁드립니다. 강사님 발음과 싱크도 0.5초가량 밀립니다.",
-        createdAt: '2026.10.26 15:35'
-      },
-      {
-        id: 'rev-202',
-        author: '이영희',
-        role: 'REVIEWER',
-        timestampSeconds: 525,
-        timestampFormatted: '08:45',
-        verdict: 'REJECTED',
-        content: '08:45 배경음악(BGM) 게인이 너무 높아 강사 목소리가 묻힙니다. 볼륨 -4dB 조절 후 재인코딩 요망합니다.',
-        createdAt: '2026.10.26 15:42'
-      }
-    ],
-    subtitles: [
-      {
-        id: 1,
-        startTime: '00:00',
-        endTime: '00:05',
-        startSeconds: 0,
-        endSeconds: 5,
-        textKo: '단편 영화 <수학여행>의 서사 전략 분석을 시작하겠습니다.',
-        textEn: 'We will begin the narrative strategy analysis of the short film "School Trip".'
-      },
-      {
-        id: 2,
-        startTime: '00:06',
-        endTime: '00:14',
-        startSeconds: 6,
-        endSeconds: 14,
-        textKo: '본 작품에서 기차역과 낡은 카메라라는 모티프가 인물의 심리를 어떻게 대변하는지 주목해 보세요.',
-        textEn: 'Notice how the motifs of the train station and the vintage camera represent the characters psyche.'
-      },
-      {
-        id: 3,
-        startTime: '03:10',
-        endTime: '03:18',
-        startSeconds: 190,
-        endSeconds: 198,
-        textKo: '이 장면에서의 학습 전략과 복선 회수는 서사의 클라이맥스를 준비하는 결정적 계기가 됩니다.',
-        textEn: 'The strategic foreshadowing in this scene becomes the pivotal trigger preparing for the narrative climax.'
-      }
-    ],
-    pipeline: {
-      jobId: 'job-aws-102',
-      overallProgress: 100,
-      currentStage: '검수 완료 (반려됨)',
-      stages: [
-        { name: 'S3 Multipart Upload', description: '260MB 원본 저장', status: 'done', progress: 100, timestamp: '13:28' },
-        { name: 'AWS MediaConvert', description: '트랜스코딩 및 썸네일 생성', status: 'done', progress: 100, timestamp: '13:31' },
-        { name: 'Gemini AI Subtitles', description: 'AI 자막/번역 추출', status: 'done', progress: 100, timestamp: '13:33' },
-        { name: 'DynamoDB Indexing', description: '검수 대기열 등록', status: 'done', progress: 100, timestamp: '13:34' }
-      ]
-    }
-  },
-  {
-    id: 'vid-03',
-    weekId: 1,
-    weekTitle: 'AI 시대, 새로운 스토리텔링의 문법',
-    sessionTitle: '캐릭터 내적 갈등과 플롯의 상관관계',
-    fileName: '26story01_03_02.mp4',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-    duration: 654,
-    fileSize: '210 MB',
-    status: 'APPROVED',
-    uploadedAt: '2026.10.26 11:40',
-    updatedAt: '2026.10.26 16:10',
-    reviewerName: '이영희',
-    reviews: [
-      {
-        id: 'rev-301',
-        author: '이영희',
-        role: 'REVIEWER',
-        timestampSeconds: 80,
-        timestampFormatted: '01:20',
-        verdict: 'APPROVED',
-        content: '인물 관계도 CG 그래픽 해상도 선명하고 내용 검수 이상 없습니다.',
-        createdAt: '2026.10.26 16:10'
+        content: '도입부 모션 및 오디오 싱크 확인 완료. 최종 승인합니다.',
+        createdAt: '2026.10.26 14:10'
       }
     ],
     subtitles: [],
     pipeline: {
-      jobId: 'job-aws-103',
+      jobId: 'job-story-02',
       overallProgress: 100,
-      currentStage: '완료',
+      currentStage: '승인 완료',
       stages: [
-        { name: 'S3 Multipart Upload', description: '업로드 완료', status: 'done', progress: 100 },
-        { name: 'AWS MediaConvert', description: '인코딩 완료', status: 'done', progress: 100 },
-        { name: 'Gemini AI Subtitles', description: '자막 생성 완료', status: 'done', progress: 100 },
-        { name: 'DynamoDB Indexing', description: '등록 완료', status: 'done', progress: 100 }
-      ]
-    }
-  },
-  {
-    id: 'vid-04',
-    weekId: 2,
-    weekTitle: '생성형 AI를 활용한 시나리오 디벨롭',
-    sessionTitle: '프롬프트로 구축하는 3막 구조와 반전',
-    fileName: '26story02_01_03.mp4',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-    duration: 820,
-    fileSize: '310 MB',
-    status: 'PENDING',
-    uploadedAt: '2026.10.26 14:50',
-    updatedAt: '2026.10.26 14:50',
-    reviews: [],
-    subtitles: [],
-    pipeline: {
-      jobId: 'job-aws-104',
-      overallProgress: 100,
-      currentStage: '검수 대기 중',
-      stages: [
-        { name: 'S3 Multipart Upload', description: '업로드 완료', status: 'done', progress: 100 },
-        { name: 'AWS MediaConvert', description: '트랜스코딩 완료', status: 'done', progress: 100 },
-        { name: 'Gemini AI Subtitles', description: 'AI 자막 대기 중', status: 'done', progress: 100 },
-        { name: 'DynamoDB Indexing', description: '검수 큐 인입', status: 'done', progress: 100 }
-      ]
-    }
-  },
-  {
-    id: 'vid-05',
-    weekId: 2,
-    weekTitle: '생성형 AI를 활용한 시나리오 디벨롭',
-    sessionTitle: 'AI 페르소나 대화 기법을 통한 대사 창작',
-    fileName: '26story02_02_01.mp4',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
-    duration: 710,
-    fileSize: '235 MB',
-    status: 'APPROVED',
-    uploadedAt: '2026.10.26 09:20',
-    updatedAt: '2026.10.26 12:00',
-    reviewerName: '김관리',
-    reviews: [
-      {
-        id: 'rev-501',
-        author: '김관리',
-        role: 'ADMIN',
-        timestampSeconds: 15,
-        timestampFormatted: '00:15',
-        verdict: 'APPROVED',
-        content: '실습 프롬프트 텍스트 가독성 최적화 확인 완료. 승인 처리합니다.',
-        createdAt: '2026.10.26 12:00'
-      }
-    ],
-    subtitles: [],
-    pipeline: {
-      jobId: 'job-aws-105',
-      overallProgress: 100,
-      currentStage: '완료',
-      stages: [
-        { name: 'S3 Multipart Upload', description: '업로드 완료', status: 'done', progress: 100 },
-        { name: 'AWS MediaConvert', description: '인코딩 완료', status: 'done', progress: 100 },
-        { name: 'Gemini AI Subtitles', description: '자막 완료', status: 'done', progress: 100 },
-        { name: 'DynamoDB Indexing', description: '인덱스 완료', status: 'done', progress: 100 }
-      ]
-    }
-  },
-  {
-    id: 'vid-06',
-    weekId: 3,
-    weekTitle: '멀티모달 비주얼 스토리보딩',
-    sessionTitle: '스테이지 조명과 카메라 앵글 프롬프트',
-    fileName: '26story03_01_02.mp4',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4',
-    duration: 590,
-    fileSize: '190 MB',
-    status: 'PROCESSING',
-    uploadedAt: '2026.10.26 16:30',
-    updatedAt: '2026.10.26 16:35',
-    reviews: [],
-    subtitles: [],
-    pipeline: {
-      jobId: 'job-aws-106',
-      overallProgress: 68,
-      currentStage: 'AWS MediaConvert 인코딩 중 (68%)',
-      stages: [
-        { name: 'S3 Multipart Upload', description: '190MB 업로드 성공', status: 'done', progress: 100, timestamp: '16:30' },
-        { name: 'AWS MediaConvert', description: 'H.264 1080p ABR 프로파일 인코딩 중', status: 'active', progress: 68, timestamp: '16:32' },
-        { name: 'Gemini AI Subtitles', description: '음성 추출 및 다국어 번역 대기', status: 'waiting', progress: 0 },
-        { name: 'DynamoDB Indexing', description: '메타데이터 등록 대기', status: 'waiting', progress: 0 }
-      ]
-    }
-  },
-  {
-    id: 'vid-07',
-    weekId: 3,
-    weekTitle: '멀티모달 비주얼 스토리보딩',
-    sessionTitle: '음향 효과와 엠비언스 사운드 믹싱 검수',
-    fileName: '26story03_02_04.mp4',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackSeeTheWorld.mp4',
-    duration: 890,
-    fileSize: '298 MB',
-    status: 'APPROVED',
-    uploadedAt: '2026.10.25 17:10',
-    updatedAt: '2026.10.26 09:30',
-    reviewerName: '이영희',
-    reviews: [
-      {
-        id: 'rev-701',
-        author: '이영희',
-        role: 'REVIEWER',
-        timestampSeconds: 120,
-        timestampFormatted: '02:00',
-        verdict: 'APPROVED',
-        content: '마스터 음향 LUFS 규격(-14 LUFS) 기준 완벽 준수 확인. 검수 승인합니다.',
-        createdAt: '2026.10.26 09:30'
-      }
-    ],
-    subtitles: [],
-    pipeline: {
-      jobId: 'job-aws-107',
-      overallProgress: 100,
-      currentStage: '완료',
-      stages: [
-        { name: 'S3 Multipart Upload', description: '업로드 완료', status: 'done', progress: 100 },
-        { name: 'AWS MediaConvert', description: '인코딩 완료', status: 'done', progress: 100 },
-        { name: 'Gemini AI Subtitles', description: '자막 완료', status: 'done', progress: 100 },
-        { name: 'DynamoDB Indexing', description: '인덱스 완료', status: 'done', progress: 100 }
+        { name: 'S3 Multipart Upload', description: '완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: '완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '완료', status: 'done', progress: 100 }
       ]
     }
   }
@@ -352,83 +493,35 @@ export const INITIAL_VIDEOS: VideoSession[] = [
 
 export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   {
-    id: 'log-001',
+    id: 'log-01',
     actor: '이영희',
     role: 'REVIEWER',
-    action: 'VERDICT_REJECTED',
-    target: '26story01_02_04.mp4',
-    details: '03:12 자막 오타 및 08:45 음향 레벨 불량으로 검수 반려 등록',
-    timestamp: '2026.10.26 15:42',
+    action: 'STATUS_PENDING',
+    target: 'dhc26_01.mp4',
+    details: 'Bio Health 시대의 ESG와 지속 가능한 성장 검수 대기열 진입',
+    timestamp: '2026.10.27 19:54',
     ipAddress: '192.168.1.42'
   },
   {
-    id: 'log-002',
-    actor: '이영희',
-    role: 'REVIEWER',
-    action: 'COMMENT_ADDED',
-    target: '26story01_02_04.mp4',
-    details: '타임스탬프 03:12 의견 추가',
-    timestamp: '2026.10.26 15:35',
-    ipAddress: '192.168.1.42'
-  },
-  {
-    id: 'log-003',
+    id: 'log-02',
     actor: '김관리',
     role: 'ADMIN',
-    action: 'VERDICT_APPROVED',
-    target: '26story02_02_01.mp4',
-    details: '실습 프롬프트 가독성 확인 후 승인 처리',
-    timestamp: '2026.10.26 12:00',
-    ipAddress: '192.168.1.10'
-  },
-  {
-    id: 'log-004',
-    actor: '박제작',
-    role: 'CREATOR',
-    action: 'VIDEO_UPLOAD',
-    target: '26story03_01_02.mp4',
-    details: '3주차 1차시 영상 190MB S3 멀티파트 업로드 실행',
-    timestamp: '2026.10.26 16:30',
-    ipAddress: '10.0.4.15'
-  },
-  {
-    id: 'log-005',
-    actor: '김관리',
-    role: 'ADMIN',
-    action: 'AI_SUBTITLE_RUN',
-    target: '26story01_01_01.mp4',
-    details: 'Gemini 3.8 Flash 음성인식 및 영문 번역 자막 생성 완료',
-    timestamp: '2026.10.26 10:20',
+    action: 'PROJECT_SETUP',
+    target: 'Bio Health 시대의 ESG와 지속 가능한 성장',
+    details: '17개 프로젝트 및 83개 동영상 메타데이터 연동 완료',
+    timestamp: '2026.10.27 18:30',
     ipAddress: '192.168.1.10'
   }
 ];
 
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
-    id: 'notif-1',
-    type: 'rejection',
-    title: '동영상 검수 반려 알림',
-    body: "이영희 검수자가 '26story01_02_04.mp4'에 2건의 수정 요청을 등록했습니다.",
-    timestamp: '15:42',
+    id: 'notif-01',
+    type: 'upload',
+    title: '새 영상 등록',
+    body: 'Bio Health 시대의 ESG와 지속 가능한 성장 (dhc26_01.mp4) 등록 완료',
+    timestamp: '19:54',
     read: false,
-    videoId: 'vid-02'
-  },
-  {
-    id: 'notif-2',
-    type: 'pipeline',
-    title: '영상 트랜스코딩 완료',
-    body: "'26story02_01_03.mp4' AWS MediaConvert 작업이 완료되었습니다.",
-    timestamp: '14:52',
-    read: false,
-    videoId: 'vid-04'
-  },
-  {
-    id: 'notif-3',
-    type: 'approval',
-    title: '검수 승인 완료',
-    body: "'26story02_02_01.mp4' 강의가 최종 승인되었습니다.",
-    timestamp: '12:01',
-    read: true,
-    videoId: 'vid-05'
+    videoId: 'dhc26_01'
   }
 ];

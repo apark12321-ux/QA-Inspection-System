@@ -38,6 +38,8 @@ export interface VideoSession {
   sessionTitle: string;
   fileName: string;
   videoUrl: string;
+  sourceType?: 'direct' | 'youtube' | 'vimeo' | 'googledrive';
+  projectId?: string;
   duration: number; // in seconds
   fileSize: string;
   status: ReviewStatus;
@@ -73,6 +75,31 @@ export interface NotificationItem {
   timestamp: string;
   read: boolean;
   videoId?: string;
+}
+
+export interface ProjectSessionItem {
+  id: string;
+  title: string;
+  weekTitle?: string;
+  videoCount: number;
+  videos: VideoSession[];
+}
+
+export interface ProjectWeekItem {
+  id: string;
+  title: string;
+  sessions: ProjectSessionItem[];
+}
+
+export interface ProjectItem {
+  id: string;
+  name: string;
+  alias: string;
+  weekCount: number;
+  sessionCount: number;
+  videoCount: number;
+  weeks?: ProjectWeekItem[];
+  sessions?: ProjectSessionItem[];
 }
 
 export interface UserAccount {

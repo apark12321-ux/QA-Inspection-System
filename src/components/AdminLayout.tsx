@@ -6,6 +6,7 @@ import { UserManagement } from './UserManagement';
 import { AuditLogView } from './AuditLogView';
 import { AwsArchitectureView } from './AwsArchitectureView';
 import { MediaStorageManager } from './MediaStorageManager';
+import { WhomediaLogo } from './WhomediaLogo';
 import {
   BarChart3,
   HardDrive,
@@ -89,16 +90,8 @@ export const AdminLayout: React.FC = () => {
       <aside className="w-full md:w-64 bg-slate-900 text-white shrink-0 flex flex-col border-r border-slate-800">
         
         {/* Brand Lockup */}
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs">
-              QA
-            </div>
-            <div>
-              <h1 className="text-sm font-bold tracking-tight text-white">관리자 콘솔</h1>
-              <p className="text-[11px] text-slate-400 font-mono">Enterprise Admin Suite</p>
-            </div>
-          </div>
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <WhomediaLogo size="sm" isDarkTheme={true} />
         </div>
 
         {/* Admin Navigation Links */}

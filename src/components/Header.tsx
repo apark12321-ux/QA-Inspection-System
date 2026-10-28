@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/i18n';
 import { UserRole } from '../types';
+import { WhomediaLogo } from './WhomediaLogo';
 import {
   Play,
   Upload,
@@ -84,19 +85,9 @@ export const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           
-          {/* Zone 1: Brand & Logo matching reference */}
+          {/* Zone 1: WHOMEDIA Official Brand & Program Name */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
-              <Play className="w-4 h-4 fill-current ml-0.5" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 leading-tight">
-                {t.appTitle}
-              </span>
-              <span className="text-[11px] text-slate-500 font-medium hidden sm:inline-block">
-                {t.brandName} · QA Inspection System
-              </span>
-            </div>
+            <WhomediaLogo size="md" />
           </div>
 
           {/* Zone 2: Navigation Links */}

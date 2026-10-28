@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../utils/i18n';
 import { ReviewComment, SubtitleEntry } from '../types';
 import { formatTime, exportSubtitlesToSrt, exportSubtitlesToVtt, downloadFile } from '../utils/formatters';
+import { getVideoSourceInfo } from '../utils/videoUtils';
 import {
   X,
   Play,
@@ -43,6 +44,7 @@ export const ReviewModal: React.FC = () => {
   } = useApp();
 
   const t = translations[language];
+  const sourceInfo = getVideoSourceInfo(selectedVideo?.videoUrl);
 
   // Video playback states & references
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -518,7 +520,21 @@ export const ReviewModal: React.FC = () => {
                 </div>
               )}
 
-              {!useCanvasFallback ? (
+              {sourceInfo.isExternal ? (
+                <div className="w-full h-full relative flex items-center justify-center bg-black">
+                  <iframe
+                    src={sourceInfo.embedUrl}
+                    title={selectedVideo.fileName}
+                    className="w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                  <div className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-xs text-white px-2.5 py-1 rounded-md text-[11px] font-bold border border-slate-700 shadow-md flex items-center gap-1.5 pointer-events-none z-20">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>{sourceInfo.providerName} 외부 호스팅 (트래픽 비용 0원)</span>
+                  </div>
+                </div>
+              ) : !useCanvasFallback ? (
                 <video
                   ref={videoRef}
                   key={selectedVideo.id}
@@ -571,8 +587,8 @@ export const ReviewModal: React.FC = () => {
                 />
               )}
 
-              {/* Center Play overlay button when paused */}
-              {!isPlaying && (
+              {/* Center Play overlay button when paused (for native/canvas) */}
+              {!sourceInfo.isExternal && !isPlaying && (
                 <button
                   type="button"
                   onClick={handlePlayPause}
@@ -763,19 +779,16 @@ export const ReviewModal: React.FC = () => {
                     value={reviewerName}
                     onChange={e => setReviewerName(e.target.value)}
                     placeholder={t.reviewerNameInput}
-                    className="w-full px-3 py-1.5 text-xs border border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
+                    className="w-full px-3 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-medium text-slate-900 transition-colors"
                   />
                 </div>
 
-                {/* 검수 결과 3 Buttons: 승인 [Green], 반려 [Red], 대기로 [Navy] */}
+                {/* 검수 결과 3 Buttons: 승인 [Green], 반려 [Red], 대기로 [Dark Slate] */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-[11px] font-bold text-slate-700">
                       {t.reviewResult}
                     </label>
-                    <span className="text-[10px] text-blue-600 font-medium">
-                      클릭 시 즉시 상태 반영
-                    </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -783,8 +796,8 @@ export const ReviewModal: React.FC = () => {
                       onClick={() => handleVerdictClick('APPROVED')}
                       className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
                         selectedVerdict === 'APPROVED'
-                          ? 'bg-emerald-600 ring-2 ring-emerald-500 ring-offset-2 shadow-md font-extrabold'
-                          : 'bg-emerald-600/80 hover:bg-emerald-600 hover:shadow-xs'
+                          ? 'bg-emerald-600 ring-2 ring-emerald-400 font-extrabold shadow-xs'
+                          : 'bg-emerald-600/85 hover:bg-emerald-600'
                       }`}
                       title="클릭하여 즉시 '승인 완료' 상태로 저장합니다."
                     >
@@ -797,8 +810,8 @@ export const ReviewModal: React.FC = () => {
                       onClick={() => handleVerdictClick('REJECTED')}
                       className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
                         selectedVerdict === 'REJECTED'
-                          ? 'bg-red-600 ring-2 ring-red-500 ring-offset-2 shadow-md font-extrabold'
-                          : 'bg-red-600/80 hover:bg-red-600 hover:shadow-xs'
+                          ? 'bg-rose-600 ring-2 ring-rose-400 font-extrabold shadow-xs'
+                          : 'bg-rose-600/85 hover:bg-rose-600'
                       }`}
                       title="클릭하여 즉시 '검수 반려' 상태로 저장하고 사유 입력을 활성화합니다."
                     >
@@ -811,8 +824,8 @@ export const ReviewModal: React.FC = () => {
                       onClick={() => handleVerdictClick('PENDING')}
                       className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
                         selectedVerdict === 'PENDING'
-                          ? 'bg-slate-700 ring-2 ring-slate-600 ring-offset-2 shadow-md font-extrabold'
-                          : 'bg-slate-700/80 hover:bg-slate-700 hover:shadow-xs'
+                          ? 'bg-slate-800 ring-2 ring-slate-600 font-extrabold shadow-xs'
+                          : 'bg-slate-800/85 hover:bg-slate-800'
                       }`}
                       title="클릭하여 '검수 대기' 상태로 전환합니다."
                     >
@@ -1144,6 +1157,18 @@ export const ReviewModal: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Floating live subtitle indicator matching screenshot 1 */}
+      {selectedVideo.subtitles && selectedVideo.subtitles.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-black/90 text-white px-6 py-2.5 rounded-xl shadow-2xl border border-slate-700/80 max-w-lg text-center backdrop-blur-md pointer-events-none">
+          <div className="text-[10px] font-bold text-slate-400 mb-0.5 italic">실시간 자막</div>
+          <div className="text-xs sm:text-sm font-medium text-slate-100">
+            {selectedVideo.subtitles.find(s => currentTime >= s.startSeconds && currentTime <= s.endSeconds)?.textKo ||
+              selectedVideo.subtitles[0]?.textKo ||
+              '안녕하십니까? 전문대학 평생직업교육 혁신과 ESG 생태계 조성입니다.'}
+          </div>
+        </div>
+      )}
 
     </div>
   );

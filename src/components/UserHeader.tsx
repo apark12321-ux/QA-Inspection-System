@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/i18n';
 import { UserRole } from '../types';
+import { WhomediaLogo } from './WhomediaLogo';
 import {
   Play,
   Upload,
@@ -16,7 +17,10 @@ import {
   CheckCheck,
   ChevronDown,
   LayoutDashboard,
-  ArrowRight
+  ArrowRight,
+  FolderKanban,
+  CheckCircle2,
+  Layers
 } from 'lucide-react';
 
 export const UserHeader: React.FC = () => {
@@ -33,7 +37,9 @@ export const UserHeader: React.FC = () => {
     setUploadModalOpen,
     setSelectedVideo,
     videos,
-    setPortalMode
+    setPortalMode,
+    userViewMode,
+    setUserViewMode
   } = useApp();
 
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
@@ -74,31 +80,76 @@ export const UserHeader: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           
-          {/* Zone 1: Authentic Brand matching reference screenshot */}
+          {/* Zone 1: WHOMEDIA Official Brand & Program Name */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
-              <Play className="w-4 h-4 fill-current ml-0.5" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 leading-tight">
-                {t.appTitle}
+            <WhomediaLogo size="md" />
+            <div className="hidden sm:flex flex-col border-l border-slate-200 pl-3">
+              <span className="text-xs font-bold text-slate-800">
+                {userViewMode === 'registration'
+                  ? '검수요청 등록자 페이지'
+                  : '검수자 검수 포털'}
               </span>
-              <span className="text-[11px] text-slate-500 font-medium hidden sm:inline-block">
-                교육 영상 품질검수 포털 (QA Portal)
+              <span className="text-[11px] text-slate-500 font-medium">
+                {userViewMode === 'registration'
+                  ? '프로젝트 / 차시 / 동영상 등록 & 현황'
+                  : '타임코드 코멘트 & 승인/반려 결정'}
               </span>
             </div>
           </div>
 
-          {/* Zone 2: Focused Clean Space (Zero Admin clutter for reviewers!) */}
-          <div className="hidden md:flex items-center text-xs font-semibold text-slate-500">
-            <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full font-medium">
-              차시 검수 워크스페이스
-            </span>
+          {/* Zone 2: Focused Mode Switcher (Registration vs Review) */}
+          <div className="hidden md:flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-200/80">
+            <button
+              onClick={() => setUserViewMode('registration')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                userViewMode === 'registration'
+                  ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FolderKanban className="w-3.5 h-3.5" />
+              <span>등록 및 관리 (제안 데모)</span>
+            </button>
+
+            <button
+              onClick={() => setUserViewMode('review')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                userViewMode === 'review'
+                  ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>검수자 워크스페이스</span>
+            </button>
           </div>
 
-          {/* Zone 3: Essential Controls (Role, Admin Transition, Language, Notifications, Upload) */}
+          {/* Zone 3: Essential Controls (Mode Shortcut, Role, Admin, Upload) */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             
+            {/* View Mode Primary Action Button */}
+            {userViewMode === 'registration' ? (
+              <button
+                onClick={() => setUserViewMode('review')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition-all shadow-2xs"
+                title="검수자 전용 동영상 플레이어 및 차시 목록으로 이동합니다."
+              >
+                <Play className="w-3 h-3 fill-current text-blue-600" />
+                <span>검수자 페이지 바로가기</span>
+                <ArrowRight className="w-3 h-3 text-blue-500" />
+              </button>
+            ) : (
+              <button
+                onClick={() => setUserViewMode('registration')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition-all shadow-2xs"
+                title="프로젝트, 주차, 차시 및 동영상 등록 페이지로 이동합니다."
+              >
+                <FolderKanban className="w-3 h-3 text-blue-600" />
+                <span>등록자 페이지 바로가기</span>
+                <ArrowRight className="w-3 h-3 text-blue-500" />
+              </button>
+            )}
+
             {/* Direct Admin Console Link Button */}
             <button
               onClick={() => {
@@ -107,12 +158,11 @@ export const UserHeader: React.FC = () => {
                 }
                 setPortalMode('admin');
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-all shadow-xs"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-all shadow-xs"
               title="관리자 전용 대시보드 및 파이프라인 콘솔로 이동합니다."
             >
               <LayoutDashboard className="w-3.5 h-3.5 text-blue-400" />
-              <span className="hidden sm:inline">관리자 콘솔</span>
-              <ArrowRight className="w-3 h-3 text-slate-400" />
+              <span>관리자 콘솔</span>
             </button>
 
             {/* Quick Role Switcher */}

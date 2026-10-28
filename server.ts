@@ -1,19 +1,199 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '50mb' }));
 
+// Persistent Data Storage Directory & File
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DB_FILE = path.resolve(DATA_DIR, 'db.json');
+
+interface ServerDb {
+  projects: any[];
+  videos: any[];
+  lastUpdated: string;
+}
+
+function initDb(): ServerDb {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (fs.existsSync(DB_FILE)) {
+      const data = fs.readFileSync(DB_FILE, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Error loading server db file, using empty init:', err);
+  }
+  return {
+    projects: [],
+    videos: [],
+    lastUpdated: new Date().toISOString()
+  };
+}
+
+let db = initDb();
+
+function persistDb() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    db.lastUpdated = new Date().toISOString();
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to write db file:', err);
+  }
+}
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    time: new Date().toISOString(),
+    dbStats: {
+      projectCount: db.projects.length,
+      videoCount: db.videos.length,
+      lastUpdated: db.lastUpdated
+    }
+  });
+});
+
+// Sync complete data endpoint (Phase 2 Cloud & Multi-user Sync)
+app.get('/api/sync', (req, res) => {
+  res.json({
+    success: true,
+    projects: db.projects,
+    videos: db.videos,
+    lastUpdated: db.lastUpdated
+  });
+});
+
+app.post('/api/sync', (req, res) => {
+  const { projects, videos } = req.body;
+  if (Array.isArray(projects) && projects.length > 0) {
+    db.projects = projects;
+  }
+  if (Array.isArray(videos) && videos.length > 0) {
+    db.videos = videos;
+  }
+  persistDb();
+  res.json({
+    success: true,
+    lastUpdated: db.lastUpdated,
+    projectCount: db.projects.length,
+    videoCount: db.videos.length
+  });
+});
+
+// Projects REST endpoints
+app.get('/api/projects', (req, res) => {
+  res.json({ success: true, projects: db.projects });
+});
+
+app.post('/api/projects', (req, res) => {
+  const newProj = req.body;
+  if (!newProj || !newProj.name) {
+    return res.status(400).json({ error: 'Project name is required' });
+  }
+
+  // Update or insert
+  const idx = db.projects.findIndex(p => p.id === newProj.id || (p.alias && p.alias === newProj.alias));
+  if (idx >= 0) {
+    db.projects[idx] = { ...db.projects[idx], ...newProj };
+  } else {
+    db.projects.unshift(newProj);
+  }
+  persistDb();
+  res.json({ success: true, project: newProj });
+});
+
+app.delete('/api/projects/:id', (req, res) => {
+  const { id } = req.params;
+  db.projects = db.projects.filter(p => p.id !== id && p.alias !== id);
+  persistDb();
+  res.json({ success: true, deletedId: id });
+});
+
+// Videos REST endpoints
+app.get('/api/videos', (req, res) => {
+  res.json({ success: true, videos: db.videos });
+});
+
+app.post('/api/videos', (req, res) => {
+  const newVideo = req.body;
+  if (!newVideo || !newVideo.id) {
+    return res.status(400).json({ error: 'Video id is required' });
+  }
+  db.videos.unshift(newVideo);
+  persistDb();
+  res.json({ success: true, video: newVideo });
+});
+
+app.patch('/api/videos/:id', (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
+  const idx = db.videos.findIndex(v => v.id === id);
+  if (idx >= 0) {
+    db.videos[idx] = {
+      ...db.videos[idx],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+    persistDb();
+    return res.json({ success: true, video: db.videos[idx] });
+  }
+  res.status(404).json({ error: 'Video not found' });
+});
+
+app.delete('/api/videos/:id', (req, res) => {
+  const { id } = req.params;
+  db.videos = db.videos.filter(v => v.id !== id);
+  persistDb();
+  res.json({ success: true, deletedId: id });
+});
+
+// Video Comments & Timecode Feedback endpoints
+app.post('/api/videos/:id/comments', (req, res) => {
+  const { id } = req.params;
+  const { comment, verdict } = req.body;
+  const video = db.videos.find(v => v.id === id);
+  if (!video) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+
+  const commentObj = {
+    id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    createdAt: new Date().toISOString(),
+    ...comment
+  };
+
+  if (!Array.isArray(video.reviews)) {
+    video.reviews = [];
+  }
+  video.reviews.unshift(commentObj);
+
+  if (verdict) {
+    video.status = verdict;
+    video.reviewerName = comment.author;
+  }
+  video.updatedAt = new Date().toISOString();
+  persistDb();
+
+  res.json({ success: true, comment: commentObj, status: video.status });
 });
 
 // AI Subtitle Generation & Translation via Gemini API
@@ -50,14 +230,13 @@ app.post('/api/ai/subtitles', async (req, res) => {
     "endSeconds": 5,
     "textKo": "안녕하세요. 이번 차시에서는 스토리텔링의 핵심 뼈대를 살펴봅니다.",
     "textEn": "Hello. In this session, we will explore the core framework of storytelling."
-  },
-  ...
+  }
 ]
 약 8~12개의 자연스러운 문장 단위 자막을 생성해 주세요.
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -94,8 +273,8 @@ function generateFallbackSubtitles(sessionTitle: string = '스토리텔링 워�
       endTime: "00:06",
       startSeconds: 0,
       endSeconds: 6,
-      textKo: `안녕하세요, 학습자 여러분. ${sessionTitle} 강의를 시작하겠습니다.`,
-      textEn: `Hello, learners. Welcome to the session on "${sessionTitle}".`
+      textKo: `${sessionTitle} 강의를 시작하겠습니다.`,
+      textEn: `Let's begin the lecture on "${sessionTitle}".`
     },
     {
       id: 2,
@@ -103,35 +282,35 @@ function generateFallbackSubtitles(sessionTitle: string = '스토리텔링 워�
       endTime: "00:15",
       startSeconds: 7,
       endSeconds: 15,
-      textKo: "스토리텔링의 기본 구조에서 모티프(Motif)는 서사의 추진력을 부여하는 중요한 장치입니다.",
-      textEn: "In basic storytelling structure, the motif serves as a vital engine driving narrative momentum."
+      textKo: "오늘은 모든 서사의 출발점이 되는 이야기의 뼈대와 모티프(Motif)를 살펴보겠습니다.",
+      textEn: "Today, we will examine the backbone of narrative and motifs that serve as the foundation."
     },
     {
       id: 3,
       startTime: "00:16",
-      endTime: "00:25",
+      endTime: "00:26",
       startSeconds: 16,
-      endSeconds: 25,
-      textKo: "이번 단편 예시를 통해 주인공의 내적 갈등과 상징적 오브젝트의 상관관계를 분석해보겠습니다.",
-      textEn: "Through this short story example, let us analyze the correlation between internal conflict and symbolic objects."
+      endSeconds: 26,
+      textKo: "스토리텔링의 모티프는 캐릭터의 심리 변화와 밀접하게 연동됩니다.",
+      textEn: "Storytelling motifs are intimately connected to characters psychological arcs."
     },
     {
       id: 4,
-      startTime: "00:26",
-      endTime: "00:36",
-      startSeconds: 26,
-      endSeconds: 36,
-      textKo: "화면 우측의 타임라인을 참고하시어 각 시퀀스별 주요 전환점을 확인해 주세요.",
-      textEn: "Please refer to the timeline on the right to examine major turning points for each sequence."
+      startTime: "00:27",
+      endTime: "00:37",
+      startSeconds: 27,
+      endSeconds: 37,
+      textKo: "고전 비극부터 현대 SF 서사까지, 반복되는 구조적 원형을 이해하는 것이 중요합니다.",
+      textEn: "From classical tragedy to modern sci-fi narratives, understanding recurrent archetypes is key."
     },
     {
       id: 5,
-      startTime: "00:37",
+      startTime: "00:38",
       endTime: "00:48",
-      startSeconds: 37,
+      startSeconds: 38,
       endSeconds: 48,
-      textKo: "모티프가 반복될 때마다 관객의 감정선은 점진적으로 고조되며 클라이맥스로 연결됩니다.",
-      textEn: "With each recurrence of the motif, the audience's emotional arc steadily builds toward the climax."
+      textKo: "3막 구조에서 전환점(Plot Point)이 어떤 방식으로 긴장감을 고조시키는지 분석합니다.",
+      textEn: "We analyze how plot points in the three-act structure elevate dramatic tension."
     },
     {
       id: 6,
@@ -156,9 +335,11 @@ function generateFallbackSubtitles(sessionTitle: string = '스토리텔링 워�
 
 async function start() {
   if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    const distDir = path.resolve(process.cwd(), 'dist');
+    app.use(express.static(distDir));
+    // SPA Wildcard Route for /:projectId, /:projectId/admin, /admin, etc.
     app.get('*', (req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.resolve(distDir, 'index.html'));
     });
   } else {
     const vite = await createViteServer({

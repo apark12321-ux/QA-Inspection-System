@@ -7,7 +7,8 @@ import {
   ReviewComment,
   SubtitleEntry,
   AuditLog,
-  NotificationItem
+  NotificationItem,
+  ProjectItem
 } from '../types';
 import {
   INITIAL_VIDEOS,
@@ -15,6 +16,7 @@ import {
   INITIAL_AUDIT_LOGS,
   INITIAL_NOTIFICATIONS
 } from '../data/initialData';
+import { INITIAL_PROJECTS } from '../data/projectData';
 
 interface AppContextType {
   videos: VideoSession[];
@@ -68,6 +70,18 @@ interface AppContextType {
   triggerSimulatedPipeline: (videoId: string) => void;
   seekToTime: number | null;
   setSeekToTime: (time: number | null) => void;
+  projects: ProjectItem[];
+  addProject: (name: string, alias: string) => void;
+  deleteProject: (id: string) => void;
+  addWeeksToProject: (projectId: string, weekNames: string[]) => void;
+  addSessionsToProject: (projectId: string, weekId: string | null, sessionNames: string[]) => void;
+  userViewMode: 'registration' | 'review';
+  setUserViewMode: (mode: 'registration' | 'review') => void;
+  currentProjectSlug: string | null;
+  setCurrentProjectSlug: (slug: string | null) => void;
+  activeProject: ProjectItem | null;
+  isCloudSynced: boolean;
+  syncWithBackend: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -78,10 +92,38 @@ const STORAGE_KEYS = {
   LOGS: 'video_review_logs_v1',
   NOTIFS: 'video_review_notifs_v1',
   LANG: 'video_review_lang_v1',
-  CURRENT_ROLE: 'video_review_role_v1'
+  CURRENT_ROLE: 'video_review_role_v1',
+  PROJECTS: 'video_review_projects_v1',
+  USER_VIEW_MODE: 'video_review_view_mode_v1'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Load saved projects or initial
+  const [projects, setProjects] = useState<ProjectItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_PROJECTS;
+  });
+
+  const [userViewMode, setUserViewModeState] = useState<'registration' | 'review'>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.USER_VIEW_MODE) as 'registration' | 'review';
+      if (saved === 'registration' || saved === 'review') return saved;
+    } catch (e) {
+      console.error(e);
+    }
+    return 'registration'; // Defaults to registration mode matching the user's primary workflow
+  });
+
+  const setUserViewMode = (mode: 'registration' | 'review') => {
+    setUserViewModeState(mode);
+    localStorage.setItem(STORAGE_KEYS.USER_VIEW_MODE, mode);
+  };
+
   // Load saved videos or initial
   const [videos, setVideos] = useState<VideoSession[]>(() => {
     try {
@@ -146,33 +188,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return 'ko';
   });
 
-  const [portalMode, setPortalModeState] = useState<'user' | 'admin'>(() => {
+  const parseCurrentRoute = () => {
     try {
+      const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '');
       const params = new URLSearchParams(window.location.search);
-      if (params.get('portal') === 'admin' || window.location.pathname.startsWith('/admin')) {
-        return 'admin';
+      const isParamAdmin = params.get('portal') === 'admin';
+
+      if (pathname === 'admin' || isParamAdmin) {
+        return { slug: null, mode: 'admin' as const };
+      }
+      if (pathname.endsWith('/admin')) {
+        const parts = pathname.split('/');
+        return { slug: parts[0] || null, mode: 'admin' as const };
+      }
+      if (pathname) {
+        return { slug: pathname, mode: 'user' as const };
       }
     } catch (e) {
       console.error(e);
     }
-    return 'user';
-  });
+    return { slug: null, mode: 'user' as const };
+  };
+
+  const initialRoute = parseCurrentRoute();
+  const [currentProjectSlug, setCurrentProjectSlugState] = useState<string | null>(initialRoute.slug);
+  const [portalMode, setPortalModeState] = useState<'user' | 'admin'>(initialRoute.mode);
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
   const [adminTab, setAdminTab] = useState<'dashboard' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws'>('dashboard');
 
-  const setPortalMode = (mode: 'user' | 'admin') => {
-    setPortalModeState(mode);
+  const setCurrentProjectSlug = (slug: string | null) => {
+    setCurrentProjectSlugState(slug);
     try {
       const url = new URL(window.location.href);
-      if (mode === 'admin') {
-        url.searchParams.set('portal', 'admin');
+      if (!slug) {
+        url.pathname = portalMode === 'admin' ? '/admin' : '/';
       } else {
-        url.searchParams.delete('portal');
+        url.pathname = portalMode === 'admin' ? `/${slug}/admin` : `/${slug}`;
       }
       window.history.pushState({}, '', url.toString());
     } catch (e) {
       console.error(e);
     }
   };
+
+  const setPortalMode = (mode: 'user' | 'admin') => {
+    setPortalModeState(mode);
+    try {
+      const url = new URL(window.location.href);
+      if (mode === 'admin') {
+        url.pathname = currentProjectSlug ? `/${currentProjectSlug}/admin` : '/admin';
+      } else {
+        url.pathname = currentProjectSlug ? `/${currentProjectSlug}` : '/';
+      }
+      url.searchParams.delete('portal');
+      window.history.pushState({}, '', url.toString());
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const activeProject = currentProjectSlug
+    ? projects.find(
+        p =>
+          p.alias.toLowerCase() === currentProjectSlug.toLowerCase() ||
+          p.id.toLowerCase() === currentProjectSlug.toLowerCase()
+      ) || null
+    : null;
+
+  const syncWithBackend = async () => {
+    try {
+      const res = await fetch('/api/sync');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.projects) && data.projects.length > 0) {
+          setProjects(data.projects);
+        } else {
+          await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projects, videos })
+          });
+        }
+        if (Array.isArray(data.videos) && data.videos.length > 0) {
+          setVideos(data.videos);
+        }
+        setIsCloudSynced(true);
+      }
+    } catch (err) {
+      console.warn('Backend sync note (using local cache):', err);
+      setIsCloudSynced(false);
+    }
+  };
+
+  useEffect(() => {
+    syncWithBackend();
+    const handlePopState = () => {
+      const route = parseCurrentRoute();
+      setCurrentProjectSlugState(route.slug);
+      setPortalModeState(route.mode);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'list' | 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws'>('list');
   const [selectedVideo, setSelectedVideo] = useState<VideoSession | null>(null);
@@ -538,6 +655,114 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 3000);
   };
 
+  const addProject = (name: string, alias: string) => {
+    const cleanName = name.trim();
+    if (!cleanName) return;
+    const cleanAlias = alias.trim().replace(/^\//, '');
+    const newProj: ProjectItem = {
+      id: `proj-${Date.now()}`,
+      name: cleanName,
+      alias: cleanAlias || `p${Math.floor(Math.random() * 900 + 100)}`,
+      weekCount: 0,
+      sessionCount: 0,
+      videoCount: 0,
+      sessions: []
+    };
+    setProjects(prev => [newProj, ...prev]);
+    addAuditLog('PROJECT_ADD', cleanName, `새 프로젝트 등록 (별칭: /${newProj.alias})`);
+  };
+
+  const deleteProject = (id: string) => {
+    const found = projects.find(p => p.id === id);
+    setProjects(prev => prev.filter(p => p.id !== id));
+    addAuditLog('PROJECT_DELETE', found ? found.name : id, '프로젝트 삭제');
+  };
+
+  const addWeeksToProject = (projectId: string, weekNames: string[]) => {
+    if (!weekNames.length) return;
+    setProjects(prev =>
+      prev.map(p => {
+        if (p.id !== projectId) return p;
+        const currentWeeks = p.weeks ? [...p.weeks] : [];
+        const existingTitles = new Set(currentWeeks.map(w => w.title.trim()));
+        const newWeeks = weekNames
+          .map(w => w.trim())
+          .filter(w => w && !existingTitles.has(w))
+          .map(title => ({
+            id: `week-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            title,
+            sessions: []
+          }));
+        const updatedWeeks = [...currentWeeks, ...newWeeks];
+        return {
+          ...p,
+          weeks: updatedWeeks,
+          weekCount: updatedWeeks.length
+        };
+      })
+    );
+    addAuditLog('WEEKS_ADD', projectId, `${weekNames.length}개 주차 일괄 등록`);
+  };
+
+  const addSessionsToProject = (projectId: string, weekId: string | null, sessionNames: string[]) => {
+    if (!sessionNames.length) return;
+    setProjects(prev =>
+      prev.map(p => {
+        if (p.id !== projectId) return p;
+        const validNames = sessionNames.map(s => s.trim()).filter(Boolean);
+        
+        if (weekId && p.weeks) {
+          const updatedWeeks = p.weeks.map(w => {
+            if (w.id !== weekId && weekId !== 'all') return w;
+            const existingTitles = new Set(w.sessions.map(s => s.title.trim()));
+            const newSessions = validNames
+              .filter(s => !existingTitles.has(s))
+              .map(title => ({
+                id: `sess-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                title,
+                weekTitle: w.title,
+                videoCount: 0,
+                videos: []
+              }));
+            return {
+              ...w,
+              sessions: [...w.sessions, ...newSessions]
+            };
+          });
+          const totalSessions = updatedWeeks.reduce((acc, w) => acc + w.sessions.length, 0);
+          return {
+            ...p,
+            weeks: updatedWeeks,
+            sessionCount: totalSessions
+          };
+        } else {
+          const currentSessions = p.sessions ? [...p.sessions] : [];
+          const existingTitles = new Set(currentSessions.map(s => s.title.trim()));
+          const newSessions = validNames
+            .filter(s => !existingTitles.has(s))
+            .map(title => ({
+              id: `sess-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              title,
+              videoCount: 0,
+              videos: []
+            }));
+          const updatedSessions = [...currentSessions, ...newSessions];
+          return {
+            ...p,
+            sessions: updatedSessions,
+            sessionCount: updatedSessions.length
+          };
+        }
+      })
+    );
+    addAuditLog('SESSIONS_ADD', projectId, `${sessionNames.length}개 차시 일괄 등록`);
+  };
+
+  // Sync projects to storage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
+  }, [projects]);
+
   return (
     <AppContext.Provider
       value={{
@@ -577,7 +802,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         closeShareModal,
         triggerSimulatedPipeline,
         seekToTime,
-        setSeekToTime
+        setSeekToTime,
+        projects,
+        addProject,
+        deleteProject,
+        addWeeksToProject,
+        addSessionsToProject,
+        userViewMode,
+        setUserViewMode,
+        currentProjectSlug,
+        setCurrentProjectSlug,
+        activeProject,
+        isCloudSynced,
+        syncWithBackend
       }}
     >
       {children}
