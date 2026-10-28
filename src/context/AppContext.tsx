@@ -25,8 +25,8 @@ interface AppContextType {
   setSelectedVideo: (v: VideoSession | null) => void;
   portalMode: 'user' | 'admin';
   setPortalMode: (mode: 'user' | 'admin') => void;
-  adminTab: 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws';
-  setAdminTab: (tab: 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws') => void;
+  adminTab: 'dashboard' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws';
+  setAdminTab: (tab: 'dashboard' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws') => void;
   activeTab: 'list' | 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws';
   setActiveTab: (tab: 'list' | 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws') => void;
   language: 'ko' | 'en';
@@ -157,7 +157,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return 'user';
   });
-  const [adminTab, setAdminTab] = useState<'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws'>('dashboard');
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws'>('dashboard');
 
   const setPortalMode = (mode: 'user' | 'admin') => {
     setPortalModeState(mode);

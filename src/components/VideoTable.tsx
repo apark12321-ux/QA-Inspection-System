@@ -11,7 +11,9 @@ import {
   Clock,
   Loader2,
   Sparkles,
-  MessageSquare
+  MessageSquare,
+  Upload,
+  HardDrive
 } from 'lucide-react';
 
 export const VideoTable: React.FC = () => {
@@ -19,7 +21,11 @@ export const VideoTable: React.FC = () => {
     videos,
     language,
     setSelectedVideo,
-    openShareModal
+    openShareModal,
+    setUploadModalOpen,
+    setPortalMode,
+    setAdminTab,
+    currentUser
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,10 +95,34 @@ export const VideoTable: React.FC = () => {
               </span>
             </h2>
           </div>
-          <div className="text-xs font-mono tabular-nums text-slate-600 bg-white px-3 py-1.5 rounded-md border border-slate-200 self-start sm:self-auto shadow-2xs">
-            {t.totalSummary
-              .replace('{count}', String(filteredVideos.length))
-              .replace('{total}', '76')}
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <div className="text-xs font-mono tabular-nums text-slate-600 bg-white px-3 py-1.5 rounded-md border border-slate-200 shadow-2xs">
+              {t.totalSummary
+                .replace('{count}', String(filteredVideos.length))
+                .replace('{total}', '76')}
+            </div>
+
+            <button
+              onClick={() => {
+                setAdminTab('storage');
+                setPortalMode('admin');
+              }}
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors"
+              title="AWS S3 영상 저장소 및 CloudFront CDN 관리로 이동"
+            >
+              <HardDrive className="w-3.5 h-3.5 text-blue-600" />
+              <span>영상 서버·저장소 관리 ↗</span>
+            </button>
+
+            {currentUser.role !== 'VIEWER' && (
+              <button
+                onClick={() => setUploadModalOpen(true)}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-bold flex items-center gap-1 shadow-xs transition-colors"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>+ 영상 업로드</span>
+              </button>
+            )}
           </div>
         </div>
 

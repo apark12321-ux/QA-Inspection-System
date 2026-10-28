@@ -5,8 +5,10 @@ import { PipelineMonitor } from './PipelineMonitor';
 import { UserManagement } from './UserManagement';
 import { AuditLogView } from './AuditLogView';
 import { AwsArchitectureView } from './AwsArchitectureView';
+import { MediaStorageManager } from './MediaStorageManager';
 import {
   BarChart3,
+  HardDrive,
   Activity,
   Shield,
   FileText,
@@ -45,6 +47,12 @@ export const AdminLayout: React.FC = () => {
       label: '관리자 대시보드',
       icon: <BarChart3 className="w-4 h-4" />,
       desc: '검수율, 승인/반려 현황 및 종합 지표'
+    },
+    {
+      id: 'storage',
+      label: '영상 저장소 & 서버 관리',
+      icon: <HardDrive className="w-4 h-4" />,
+      desc: 'S3 버킷, CloudFront CDN 및 비디오 자산'
     },
     {
       id: 'pipeline',
@@ -202,6 +210,7 @@ export const AdminLayout: React.FC = () => {
         {/* Content Viewport */}
         <main className="p-6 overflow-y-auto flex-1">
           {adminTab === 'dashboard' && <AdminDashboard />}
+          {adminTab === 'storage' && <MediaStorageManager />}
           {adminTab === 'pipeline' && <PipelineMonitor />}
           {adminTab === 'rbac' && <UserManagement />}
           {adminTab === 'audit' && <AuditLogView />}
