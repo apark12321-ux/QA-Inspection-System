@@ -22,7 +22,8 @@ import {
   Send,
   Loader2,
   FileText,
-  ShieldAlert
+  ShieldAlert,
+  AlertCircle
 } from 'lucide-react';
 
 export const ReviewModal: React.FC = () => {
@@ -32,6 +33,7 @@ export const ReviewModal: React.FC = () => {
     currentUser,
     language,
     addReviewComment,
+    updateVideoStatus,
     deleteReviewComment,
     updateVideoSubtitles,
     openShareModal,
@@ -64,6 +66,13 @@ export const ReviewModal: React.FC = () => {
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiGenError, setAiGenError] = useState<string | null>(null);
   const [showContextMenuNotice, setShowContextMenuNotice] = useState(false);
+  const [verdictNotice, setVerdictNotice] = useState<{
+    type: 'APPROVED' | 'REJECTED' | 'PENDING';
+    title: string;
+    desc: string;
+  } | null>(null);
+
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -72,6 +81,51 @@ export const ReviewModal: React.FC = () => {
     setTimeout(() => {
       setShowContextMenuNotice(false);
     }, 2500);
+  };
+
+  const handleVerdictClick = (verdict: 'APPROVED' | 'REJECTED' | 'PENDING') => {
+    if (!selectedVideo) return;
+    if (currentUser.role === 'VIEWER') {
+      alert('현재 뷰어(Viewer) 계정은 읽기 전용입니다. 검수자(Reviewer) 또는 관리자(Admin) 권한으로 전환 후 판정을 진행하세요.');
+      return;
+    }
+
+    const author = reviewerName.trim() || currentUser.name.split(' ')[0];
+    setSelectedVerdict(verdict);
+
+    // 1. Immediately update video QA status in state & database
+    updateVideoStatus(selectedVideo.id, verdict, author);
+
+    // 2. Action design based on verdict
+    if (verdict === 'APPROVED') {
+      setVerdictNotice({
+        type: 'APPROVED',
+        title: `'승인 완료' 상태로 즉시 변경되었습니다.`,
+        desc: `전체 강의 검수가 승인 처리되었습니다. 필요시 아래 폼에서 세부 승인 의견을 추가 기록하거나 검수를 마칠 수 있습니다.`
+      });
+      if (!commentText.trim()) {
+        setCommentText('도입부 모션 및 오디오/자막 싱크 검수 완료. 최종 승인합니다.');
+      }
+    } else if (verdict === 'REJECTED') {
+      const stampStr = formatTime(Math.round(currentTime));
+      setVerdictNotice({
+        type: 'REJECTED',
+        title: `'검수 반려' 상태로 변경되었습니다.`,
+        desc: `제작자가 신속히 수정할 수 있도록 아래 입력창에 수정할 타임코드 및 반려 사유를 작성하고 [의견 등록]을 완료해 주세요.`
+      });
+      if (!commentText.trim()) {
+        setCommentText(`[${stampStr}] 수정 요청 사유: `);
+      }
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+    } else {
+      setVerdictNotice({
+        type: 'PENDING',
+        title: `'검수 대기' 상태로 전환되었습니다.`,
+        desc: `추가 검토를 위해 검수 대기열 상태로 유지됩니다.`
+      });
+    }
   };
 
   useEffect(() => {
@@ -248,6 +302,12 @@ export const ReviewModal: React.FC = () => {
       },
       selectedVerdict
     );
+
+    setVerdictNotice({
+      type: selectedVerdict,
+      title: `검수 의견 및 [${selectedVerdict === 'APPROVED' ? '승인' : selectedVerdict === 'REJECTED' ? '반려' : '대기'}] 상태가 등록되었습니다.`,
+      desc: `타임코드 [${stampFormatted}] 의견이 검수 이력에 성공적으로 저장되었습니다.`
+    });
 
     setCommentText('');
   };
@@ -551,48 +611,104 @@ export const ReviewModal: React.FC = () => {
 
                 {/* 검수 결과 3 Buttons: 승인 [Green], 반려 [Red], 대기로 [Navy] */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    {t.reviewResult}
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      {t.reviewResult}
+                    </label>
+                    <span className="text-[10px] text-blue-600 font-medium">
+                      클릭 시 즉시 상태 반영
+                    </span>
+                  </div>
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setSelectedVerdict('APPROVED')}
-                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all ${
+                      onClick={() => handleVerdictClick('APPROVED')}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 ${
                         selectedVerdict === 'APPROVED'
-                          ? 'bg-emerald-600 ring-2 ring-emerald-600 ring-offset-1 shadow-xs'
-                          : 'bg-emerald-600/70 hover:bg-emerald-600'
+                          ? 'bg-emerald-600 ring-2 ring-emerald-600 ring-offset-1 shadow-md font-extrabold'
+                          : 'bg-emerald-600/75 hover:bg-emerald-600 hover:shadow-xs'
                       }`}
+                      title="클릭하여 즉시 '승인 완료' 상태로 저장합니다."
                     >
-                      {t.btnApprove}
+                      {selectedVerdict === 'APPROVED' && <CheckCircle2 className="w-3 h-3 shrink-0" />}
+                      <span>{t.btnApprove}</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => setSelectedVerdict('REJECTED')}
-                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all ${
+                      onClick={() => handleVerdictClick('REJECTED')}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 ${
                         selectedVerdict === 'REJECTED'
-                          ? 'bg-red-600 ring-2 ring-red-600 ring-offset-1 shadow-xs'
-                          : 'bg-red-600/70 hover:bg-red-600'
+                          ? 'bg-red-600 ring-2 ring-red-600 ring-offset-1 shadow-md font-extrabold'
+                          : 'bg-red-600/75 hover:bg-red-600 hover:shadow-xs'
                       }`}
+                      title="클릭하여 즉시 '검수 반려' 상태로 저장하고 사유 입력을 활성화합니다."
                     >
-                      {t.btnReject}
+                      {selectedVerdict === 'REJECTED' && <XCircle className="w-3 h-3 shrink-0" />}
+                      <span>{t.btnReject}</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => setSelectedVerdict('PENDING')}
-                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all ${
+                      onClick={() => handleVerdictClick('PENDING')}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 ${
                         selectedVerdict === 'PENDING'
-                          ? 'bg-slate-700 ring-2 ring-slate-700 ring-offset-1 shadow-xs'
-                          : 'bg-slate-700/70 hover:bg-slate-700'
+                          ? 'bg-slate-700 ring-2 ring-slate-700 ring-offset-1 shadow-md font-extrabold'
+                          : 'bg-slate-700/75 hover:bg-slate-700 hover:shadow-xs'
                       }`}
+                      title="클릭하여 '검수 대기' 상태로 전환합니다."
                     >
-                      {t.btnPending}
+                      {selectedVerdict === 'PENDING' && <Clock className="w-3 h-3 shrink-0" />}
+                      <span>{t.btnPending}</span>
                     </button>
                   </div>
                 </div>
               </div>
+
+              {/* Instant Verdict Feedback & Follow-up Action Banner */}
+              {verdictNotice && (
+                <div
+                  className={`mt-3 p-3 rounded-xl border text-xs flex items-start gap-2.5 animate-in fade-in zoom-in-95 duration-150 ${
+                    verdictNotice.type === 'APPROVED'
+                      ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                      : verdictNotice.type === 'REJECTED'
+                      ? 'bg-red-50/90 border-red-300 text-red-950'
+                      : 'bg-slate-100 border-slate-300 text-slate-800'
+                  }`}
+                >
+                  <div className="mt-0.5 shrink-0">
+                    {verdictNotice.type === 'APPROVED' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : verdictNotice.type === 'REJECTED' ? (
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-slate-600" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold flex items-center justify-between">
+                      <span className="text-xs">{verdictNotice.title}</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/70 font-semibold shadow-2xs">
+                        실시간 저장됨
+                      </span>
+                    </div>
+                    <p className="text-[11px] mt-1 leading-relaxed opacity-90">
+                      {verdictNotice.desc}
+                    </p>
+                    {verdictNotice.type === 'APPROVED' && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedVideo(null)}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold shadow-2xs transition-colors"
+                        >
+                          검수 완료 및 닫기
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
             </div>
 
@@ -603,15 +719,39 @@ export const ReviewModal: React.FC = () => {
                 
                 {/* Feedback Input Form */}
                 <form onSubmit={handleSubmitComment} className="mb-4">
-                  <label className="block text-xs font-semibold text-slate-800 mb-1">
-                    {t.reviewCommentLabel}
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-800">
+                      {t.reviewCommentLabel}
+                    </label>
+                    {selectedVerdict === 'REJECTED' && (
+                      <span className="text-[11px] text-red-600 font-bold flex items-center gap-1">
+                        * 반려 사유 및 타임코드 입력 필요
+                      </span>
+                    )}
+                    {selectedVerdict === 'APPROVED' && (
+                      <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ 승인 완료 (선택적 피드백 남기기)
+                      </span>
+                    )}
+                  </div>
+
                   <textarea
+                    ref={textareaRef}
                     rows={3}
                     value={commentText}
                     onChange={e => setCommentText(e.target.value)}
-                    placeholder={t.reviewCommentPlaceholder}
-                    className="w-full p-2.5 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder:text-slate-400"
+                    placeholder={
+                      selectedVerdict === 'REJECTED'
+                        ? "예) 03:12 자막 오타 - '학습' -> '학습 전략' 수정 요청"
+                        : t.reviewCommentPlaceholder
+                    }
+                    className={`w-full p-2.5 text-xs sm:text-sm rounded-lg focus:outline-none focus:ring-2 resize-none transition-all placeholder:text-slate-400 ${
+                      selectedVerdict === 'REJECTED'
+                        ? 'border-2 border-red-300 focus:ring-red-400 bg-red-50/20'
+                        : selectedVerdict === 'APPROVED'
+                        ? 'border border-emerald-300 focus:ring-emerald-400'
+                        : 'border border-slate-200 focus:ring-blue-500'
+                    }`}
                   />
 
                   <div className="flex items-center justify-between mt-2">
