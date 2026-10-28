@@ -312,6 +312,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    setSelectedVideo(current => {
+      if (current && current.id === videoId) {
+        const newStatus = verdict ? verdict : current.status;
+        return {
+          ...current,
+          status: newStatus,
+          reviewerName: currentUser.name.split(' ')[0],
+          updatedAt: formatted,
+          reviews: [newComment, ...current.reviews]
+        };
+      }
+      return current;
+    });
+
     const video = videos.find(v => v.id === videoId);
     const targetName = video ? video.fileName : videoId;
 
@@ -351,6 +365,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    setSelectedVideo(current => {
+      if (current && current.id === videoId) {
+        return {
+          ...current,
+          status,
+          reviewerName: reviewerName || currentUser.name.split(' ')[0],
+          updatedAt: formatted
+        };
+      }
+      return current;
+    });
+
     const video = videos.find(v => v.id === videoId);
     addAuditLog(`STATUS_${status}`, video ? video.fileName : videoId, `상태를 ${status}(으)로 변경`);
   };
@@ -365,6 +391,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       })
     );
+    setSelectedVideo(current => {
+      if (current && current.id === videoId) {
+        return {
+          ...current,
+          reviews: current.reviews.filter(r => r.id !== commentId)
+        };
+      }
+      return current;
+    });
     addAuditLog('DELETE_COMMENT', videoId, `검수 의견 ${commentId} 삭제`);
   };
 
@@ -378,6 +413,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       })
     );
+    setSelectedVideo(current => {
+      if (current && current.id === videoId) {
+        return {
+          ...current,
+          subtitles
+        };
+      }
+      return current;
+    });
     const video = videos.find(v => v.id === videoId);
     addAuditLog('AI_SUBTITLES_UPDATED', video ? video.fileName : videoId, `AI 자막 ${subtitles.length}개 구간 갱신`);
   };
@@ -403,57 +447,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       videoUrl: videoData.videoUrl,
       duration: videoData.duration || 600,
       fileSize: videoData.fileSize || '150 MB',
-      status: 'PROCESSING',
+      status: 'PENDING', // Immediately active for inspection
       uploadedAt: formatted,
       updatedAt: formatted,
       reviews: [],
       subtitles: [],
       pipeline: {
         jobId: `job-aws-${Math.floor(Math.random() * 900 + 100)}`,
-        overallProgress: 25,
-        currentStage: 'AWS MediaConvert 인코딩 중',
+        overallProgress: 100,
+        currentStage: '검수 대기 중 (인스펙션 활성화됨)',
         stages: [
           { name: 'S3 Multipart Upload', description: '파일 전송 완료', status: 'done', progress: 100, timestamp: '방금' },
-          { name: 'AWS MediaConvert', description: '트랜스코딩 진행 중', status: 'active', progress: 50, timestamp: '진행중' },
-          { name: 'Gemini AI Subtitles', description: '음성 추출 대기', status: 'waiting', progress: 0 },
-          { name: 'DynamoDB Indexing', description: '인덱싱 대기', status: 'waiting', progress: 0 }
+          { name: 'AWS MediaConvert', description: '1080p H.264 인코딩 완료', status: 'done', progress: 100, timestamp: '방금' },
+          { name: 'Gemini AI Subtitles', description: '음성 추출 및 자막 준비 완료', status: 'done', progress: 100, timestamp: '방금' },
+          { name: 'DynamoDB Indexing', description: '검수 대기열 등록 완료', status: 'done', progress: 100, timestamp: '방금' }
         ]
       }
     };
 
     setVideos(prev => [newVideo, ...prev]);
-    addAuditLog('VIDEO_UPLOAD', newVideo.fileName, `새 영상 등록 (${newVideo.fileSize}, ${newVideo.weekTitle})`);
-
-    // Simulate pipeline completion
-    setTimeout(() => {
-      setVideos(current =>
-        current.map(v => {
-          if (v.id !== newVideo.id) return v;
-          return {
-            ...v,
-            status: 'PENDING',
-            pipeline: {
-              ...v.pipeline,
-              overallProgress: 100,
-              currentStage: '검수 대기 중',
-              stages: v.pipeline.stages.map(s => ({ ...s, status: 'done', progress: 100 }))
-            }
-          };
-        })
-      );
-      setNotifications(prev => [
-        {
-          id: `notif-${Date.now()}`,
-          type: 'pipeline',
-          title: '영상 처리 완료',
-          body: `'${newVideo.fileName}' 트랜스코딩이 완료되어 검수 대기열에 등록되었습니다.`,
-          timestamp: '방금',
-          read: false,
-          videoId: newVideo.id
-        },
-        ...prev
-      ]);
-    }, 4000);
+    addAuditLog('VIDEO_UPLOAD', newVideo.fileName, `새 영상 등록 (${newVideo.fileSize}, ${newVideo.weekTitle}) - 검수 활성화`);
 
     return newVideo;
   };

@@ -31,6 +31,7 @@ export const ReviewModal: React.FC = () => {
     selectedVideo,
     setSelectedVideo,
     currentUser,
+    switchRole,
     language,
     addReviewComment,
     updateVideoStatus,
@@ -43,22 +44,28 @@ export const ReviewModal: React.FC = () => {
 
   const t = translations[language];
 
-  // Video playback states
+  // Video playback states & references
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Mutable refs to prevent render lag / infinite loops during playback
+  const currentVideoIdRef = useRef<string | null>(null);
+  const currentTimeRef = useRef<number>(8); // Default 8s matching screenshot
+  const isPlayingRef = useRef<boolean>(false);
+  const playbackRateRef = useRef<number>(1.0);
+  const durationRef = useRef<number>(749);
+  const lastUiUpdateRef = useRef<number>(0);
+
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(8); // Default to 8s matching screenshot "00:08 / 12:29"
-  const [duration, setDuration] = useState(749);      // 12:29 in seconds
+  const [currentTime, setCurrentTime] = useState(8);
+  const [duration, setDuration] = useState(749);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [isMuted, setIsMuted] = useState(false);
   const [useCanvasFallback, setUseCanvasFallback] = useState(false);
 
   // Review Form states
   const [reviewerName, setReviewerName] = useState(currentUser.name.split(' ')[0]);
-  const [selectedVerdict, setSelectedVerdict] = useState<'APPROVED' | 'REJECTED' | 'PENDING'>(
-    selectedVideo?.status === 'APPROVED' ? 'APPROVED' : selectedVideo?.status === 'REJECTED' ? 'REJECTED' : 'PENDING'
-  );
+  const [selectedVerdict, setSelectedVerdict] = useState<'APPROVED' | 'REJECTED' | 'PENDING'>('PENDING');
   const [commentText, setCommentText] = useState('');
   const [includeTimestamp, setIncludeTimestamp] = useState(true);
 
@@ -83,61 +90,43 @@ export const ReviewModal: React.FC = () => {
     }, 2500);
   };
 
-  const handleVerdictClick = (verdict: 'APPROVED' | 'REJECTED' | 'PENDING') => {
-    if (!selectedVideo) return;
-    if (currentUser.role === 'VIEWER') {
-      alert('현재 뷰어(Viewer) 계정은 읽기 전용입니다. 검수자(Reviewer) 또는 관리자(Admin) 권한으로 전환 후 판정을 진행하세요.');
-      return;
-    }
-
-    const author = reviewerName.trim() || currentUser.name.split(' ')[0];
-    setSelectedVerdict(verdict);
-
-    // 1. Immediately update video QA status in state & database
-    updateVideoStatus(selectedVideo.id, verdict, author);
-
-    // 2. Action design based on verdict
-    if (verdict === 'APPROVED') {
-      setVerdictNotice({
-        type: 'APPROVED',
-        title: `'승인 완료' 상태로 즉시 변경되었습니다.`,
-        desc: `전체 강의 검수가 승인 처리되었습니다. 필요시 아래 폼에서 세부 승인 의견을 추가 기록하거나 검수를 마칠 수 있습니다.`
-      });
-      if (!commentText.trim()) {
-        setCommentText('도입부 모션 및 오디오/자막 싱크 검수 완료. 최종 승인합니다.');
-      }
-    } else if (verdict === 'REJECTED') {
-      const stampStr = formatTime(Math.round(currentTime));
-      setVerdictNotice({
-        type: 'REJECTED',
-        title: `'검수 반려' 상태로 변경되었습니다.`,
-        desc: `제작자가 신속히 수정할 수 있도록 아래 입력창에 수정할 타임코드 및 반려 사유를 작성하고 [의견 등록]을 완료해 주세요.`
-      });
-      if (!commentText.trim()) {
-        setCommentText(`[${stampStr}] 수정 요청 사유: `);
-      }
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 100);
-    } else {
-      setVerdictNotice({
-        type: 'PENDING',
-        title: `'검수 대기' 상태로 전환되었습니다.`,
-        desc: `추가 검토를 위해 검수 대기열 상태로 유지됩니다.`
-      });
-    }
-  };
-
+  // Sync state when selected video changes or status is updated
   useEffect(() => {
-    if (selectedVideo) {
-      setDuration(selectedVideo.duration || 749);
-      setSelectedVerdict(
-        selectedVideo.status === 'APPROVED' ? 'APPROVED' : selectedVideo.status === 'REJECTED' ? 'REJECTED' : 'PENDING'
-      );
-      setReviewerName(currentUser.name.split(' ')[0]);
+    if (!selectedVideo) return;
+
+    // When opening a DIFFERENT video, reset player & comment form
+    if (currentVideoIdRef.current !== selectedVideo.id) {
+      currentVideoIdRef.current = selectedVideo.id;
+      const initialDur = selectedVideo.duration || 749;
+      setDuration(initialDur);
+      durationRef.current = initialDur;
+      
+      const startTime = 8; // Match screenshot 00:08
+      setCurrentTime(startTime);
+      currentTimeRef.current = startTime;
+      
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+      setUseCanvasFallback(false);
       setCommentText('');
+      setVerdictNotice(null);
+
+      if (videoRef.current) {
+        videoRef.current.currentTime = startTime;
+        videoRef.current.load();
+      }
     }
-  }, [selectedVideo, currentUser]);
+
+    // Always keep verdict button in sync with selected video's status
+    const vStatus: 'APPROVED' | 'REJECTED' | 'PENDING' =
+      selectedVideo.status === 'APPROVED'
+        ? 'APPROVED'
+        : selectedVideo.status === 'REJECTED'
+        ? 'REJECTED'
+        : 'PENDING';
+    setSelectedVerdict(vStatus);
+    setReviewerName(currentUser.name.split(' ')[0]);
+  }, [selectedVideo?.id, selectedVideo?.status, currentUser]);
 
   // Handle external seek requests (e.g. from share links)
   useEffect(() => {
@@ -147,7 +136,7 @@ export const ReviewModal: React.FC = () => {
     }
   }, [seekToTime]);
 
-  // Canvas-based interactive motion animation fallback when external video stream fails or is loading
+  // Canvas interactive playback engine: runs 60fps animations while updating React UI smoothly
   useEffect(() => {
     let animId: number;
     const canvas = canvasRef.current;
@@ -156,21 +145,29 @@ export const ReviewModal: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let localTime = currentTime;
     let lastStamp = performance.now();
 
     const renderFrame = (now: number) => {
-      const dt = (now - lastStamp) / 1000;
+      const dt = Math.min((now - lastStamp) / 1000, 0.1);
       lastStamp = now;
 
-      if (isPlaying) {
-        localTime += dt * playbackRate;
-        if (localTime >= duration) localTime = 0;
-        setCurrentTime(localTime);
+      if (isPlayingRef.current) {
+        currentTimeRef.current += dt * playbackRateRef.current;
+        if (currentTimeRef.current >= durationRef.current) {
+          currentTimeRef.current = 0;
+        }
+
+        // Throttle React state update to ~4 times per second (250ms) to prevent render storms
+        if (now - lastUiUpdateRef.current > 250) {
+          lastUiUpdateRef.current = now;
+          setCurrentTime(Math.round(currentTimeRef.current * 10) / 10);
+        }
       }
 
       const w = canvas.width;
       const h = canvas.height;
+      const cur = currentTimeRef.current;
+      const dur = durationRef.current;
 
       // Dark cinematic backdrop
       const grad = ctx.createLinearGradient(0, 0, w, h);
@@ -181,7 +178,7 @@ export const ReviewModal: React.FC = () => {
       ctx.fillRect(0, 0, w, h);
 
       // Glow particles / grid
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.08)';
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.09)';
       ctx.lineWidth = 1;
       const step = 40;
       for (let x = 0; x < w; x += step) {
@@ -201,33 +198,62 @@ export const ReviewModal: React.FC = () => {
       ctx.save();
       ctx.textAlign = 'center';
 
-      // Neon frame box
+      // Neon inspection focus frame box (red box from user reference screenshot)
       const boxSize = 120;
       const bx = w / 2 + 100;
       const by = h / 2 - 40;
       ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 3.5;
       ctx.shadowColor = '#ef4444';
       ctx.shadowBlur = 15;
       ctx.strokeRect(bx, by, boxSize, boxSize);
 
-      // Glowing Neon Calligraphy "CAU / Story"
-      ctx.font = 'bold 56px sans-serif';
+      // Glowing Neon Calligraphy "STORY QA"
+      ctx.font = 'bold 54px sans-serif';
       ctx.fillStyle = '#60a5fa';
       ctx.shadowColor = '#3b82f6';
-      ctx.shadowBlur = 25;
+      ctx.shadowBlur = 24;
       ctx.fillText('STORY QA', w / 2 - 40, h / 2 + 10);
 
       // Subtitle information on canvas
       ctx.shadowBlur = 0;
-      ctx.font = '16px sans-serif';
-      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillStyle = '#e2e8f0';
       ctx.fillText(selectedVideo?.sessionTitle || '강의 세부 차시', w / 2, h / 2 + 70);
 
       // Current Timecode watermark
       ctx.font = '14px monospace';
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillText(`TIME: ${formatTime(localTime)} / ${formatTime(duration)}`, w / 2, h / 2 + 100);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`TIME: ${formatTime(cur)} / ${formatTime(dur)}`, w / 2, h / 2 + 100);
+
+      // Live status badge overlay on canvas
+      const vText =
+        selectedVideo?.status === 'APPROVED'
+          ? '● 검수 상태: 승인 완료 (APPROVED)'
+          : selectedVideo?.status === 'REJECTED'
+          ? '● 검수 상태: 검수 반려 (REJECTED)'
+          : '● 검수 상태: 검수 대기 (PENDING)';
+      const vColor =
+        selectedVideo?.status === 'APPROVED'
+          ? '#10b981'
+          : selectedVideo?.status === 'REJECTED'
+          ? '#ef4444'
+          : '#38bdf8';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = vColor;
+      ctx.fillText(vText, w / 2, h - 25);
+
+      // Dynamic animated audio waveform bars when playing
+      if (isPlayingRef.current) {
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.5)';
+        const barCount = 28;
+        const barWidth = 4;
+        const startX = w / 2 - (barCount * 8) / 2;
+        for (let i = 0; i < barCount; i++) {
+          const waveHeight = Math.sin(cur * 8 + i * 0.4) * 14 + 16;
+          ctx.fillRect(startX + i * 8, h - 55 - waveHeight, barWidth, waveHeight);
+        }
+      }
 
       ctx.restore();
 
@@ -236,45 +262,105 @@ export const ReviewModal: React.FC = () => {
 
     animId = requestAnimationFrame(renderFrame);
     return () => cancelAnimationFrame(animId);
-  }, [useCanvasFallback, isPlaying, playbackRate, duration, selectedVideo]);
+  }, [useCanvasFallback, selectedVideo]);
 
   if (!selectedVideo) return null;
 
-  const handlePlayPause = () => {
-    if (useCanvasFallback) {
-      setIsPlaying(!isPlaying);
-      return;
-    }
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) {
-      video.play().then(() => setIsPlaying(true)).catch(() => {
-        // Switch to canvas fallback if media policy blocks play
-        setUseCanvasFallback(true);
-        setIsPlaying(true);
-      });
-    } else {
-      video.pause();
-      setIsPlaying(false);
+  // Toggle Play / Pause: works reliably in both HTML5 video and Canvas fallback
+  const handlePlayPause = async () => {
+    const nextState = !isPlaying;
+    setIsPlaying(nextState);
+    isPlayingRef.current = nextState;
+
+    if (!useCanvasFallback && videoRef.current) {
+      const video = videoRef.current;
+      if (nextState) {
+        try {
+          await video.play();
+        } catch (err) {
+          console.warn('Playback blocked by browser autoplay policy, attempting muted play:', err);
+          try {
+            video.muted = true;
+            setIsMuted(true);
+            await video.play();
+          } catch {
+            console.log('Video media error, switching to interactive inspection canvas engine');
+            setUseCanvasFallback(true);
+          }
+        }
+      } else {
+        video.pause();
+      }
     }
   };
 
   const handleSeek = (seconds: number) => {
-    const clamped = Math.max(0, Math.min(seconds, duration));
+    const clamped = Math.max(0, Math.min(seconds, durationRef.current));
+    currentTimeRef.current = clamped;
     setCurrentTime(clamped);
+
     if (videoRef.current) {
       videoRef.current.currentTime = clamped;
     }
   };
 
   const handleSkip = (delta: number) => {
-    handleSeek(currentTime + delta);
+    handleSeek(currentTimeRef.current + delta);
   };
 
   const handleSpeedChange = (speed: number) => {
     setPlaybackRate(speed);
+    playbackRateRef.current = speed;
     if (videoRef.current) {
       videoRef.current.playbackRate = speed;
+    }
+  };
+
+  // Verdict action: 승인, 반려, 대기로
+  // Crucial: Changing verdict updates status immediately WITHOUT pausing or disrupting video playback!
+  const handleVerdictClick = (verdict: 'APPROVED' | 'REJECTED' | 'PENDING') => {
+    if (!selectedVideo) return;
+
+    // If viewer, auto-switch to reviewer so inspection is immediately active
+    if (currentUser.role === 'VIEWER') {
+      switchRole('REVIEWER');
+    }
+
+    const author = reviewerName.trim() || currentUser.name.split(' ')[0];
+    setSelectedVerdict(verdict);
+
+    // 1. Immediately update video status in state and backend
+    updateVideoStatus(selectedVideo.id, verdict, author);
+
+    // 2. Action feedback banner & helper text
+    const curStamp = formatTime(Math.round(currentTimeRef.current));
+    if (verdict === 'APPROVED') {
+      setVerdictNotice({
+        type: 'APPROVED',
+        title: `'승인 완료' 상태로 반영되었습니다.`,
+        desc: `전체 강의 검수가 승인되었습니다. 필요시 아래 폼에서 세부 승인 의견을 등록하거나 검수를 완료할 수 있습니다.`
+      });
+      if (!commentText.trim()) {
+        setCommentText('도입부 모션 및 오디오/자막 싱크 검수 완료. 최종 승인합니다.');
+      }
+    } else if (verdict === 'REJECTED') {
+      setVerdictNotice({
+        type: 'REJECTED',
+        title: `'검수 반려' 상태로 변경되었습니다.`,
+        desc: `제작자가 신속히 수정할 수 있도록 아래 입력창에 수정할 타임코드 및 반려 사유를 작성하고 [의견 등록]을 진행해 주세요.`
+      });
+      if (!commentText.trim()) {
+        setCommentText(`[${curStamp}] 수정 요청 사유: `);
+      }
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 50);
+    } else {
+      setVerdictNotice({
+        type: 'PENDING',
+        title: `'검수 대기' 상태로 전환되었습니다.`,
+        desc: `추가 검토를 위해 검수 대기열 상태로 유지됩니다.`
+      });
     }
   };
 
@@ -411,10 +497,34 @@ export const ReviewModal: React.FC = () => {
                 </div>
               )}
 
+              {/* Player Mode Indicator & Fallback Switcher */}
+              {useCanvasFallback && (
+                <div className="absolute top-3 left-3 z-30 px-2.5 py-1 bg-slate-900/85 border border-blue-500/40 text-blue-300 rounded-md text-[11px] font-mono flex items-center gap-2 shadow-lg backdrop-blur-xs">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                  <span>캔버스 모션 렌더러</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseCanvasFallback(false);
+                      if (videoRef.current) {
+                        videoRef.current.load();
+                        videoRef.current.play().catch(() => {});
+                      }
+                    }}
+                    className="ml-1 text-[10px] text-white hover:text-blue-200 underline font-sans"
+                  >
+                    비디오 스트림 전환
+                  </button>
+                </div>
+              )}
+
               {!useCanvasFallback ? (
                 <video
                   ref={videoRef}
+                  key={selectedVideo.id}
                   src={selectedVideo.videoUrl}
+                  crossOrigin="anonymous"
+                  preload="auto"
                   className="w-full h-full object-contain cursor-pointer select-none"
                   onClick={handlePlayPause}
                   onContextMenu={handleContextMenu}
@@ -422,14 +532,26 @@ export const ReviewModal: React.FC = () => {
                   controlsList="nodownload noplaybackrate"
                   disablePictureInPicture
                   onTimeUpdate={() => {
-                    if (videoRef.current) {
-                      setCurrentTime(videoRef.current.currentTime);
+                    if (videoRef.current && !useCanvasFallback) {
+                      const t = videoRef.current.currentTime;
+                      currentTimeRef.current = t;
+                      setCurrentTime(t);
                     }
                   }}
                   onLoadedMetadata={() => {
                     if (videoRef.current) {
-                      setDuration(videoRef.current.duration || selectedVideo.duration);
+                      const d = videoRef.current.duration || selectedVideo.duration || 749;
+                      setDuration(d);
+                      durationRef.current = d;
                     }
+                  }}
+                  onPlay={() => {
+                    setIsPlaying(true);
+                    isPlayingRef.current = true;
+                  }}
+                  onPause={() => {
+                    setIsPlaying(false);
+                    isPlayingRef.current = false;
                   }}
                   onError={() => {
                     console.log('Video stream error, activating animated inspection canvas fallback');
@@ -452,8 +574,9 @@ export const ReviewModal: React.FC = () => {
               {/* Center Play overlay button when paused */}
               {!isPlaying && (
                 <button
+                  type="button"
                   onClick={handlePlayPause}
-                  className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-blue-600/90 text-white flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-transform"
+                  className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-blue-600/90 text-white flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-transform z-30"
                 >
                   <Play className="w-8 h-8 fill-current ml-1" />
                 </button>
@@ -593,13 +716,48 @@ export const ReviewModal: React.FC = () => {
                 </button>
               </div>
 
+              {/* Inspection Activation Check if Processing */}
+              {selectedVideo.status === 'PROCESSING' && (
+                <div className="mb-3 p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between text-xs text-amber-950 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                    <div>
+                      <p className="font-bold">미디어 변환 처리 상태</p>
+                      <p className="text-[11px] text-amber-700">검수 활성화 버튼을 눌러 즉시 검수 대기열로 전환할 수 있습니다.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateVideoStatus(selectedVideo.id, 'PENDING');
+                      setSelectedVerdict('PENDING');
+                    }}
+                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors shadow-xs"
+                  >
+                    ⚡ 검수 즉시 활성화
+                  </button>
+                </div>
+              )}
+
               {/* Reviewer & Verdict controls matching screenshot */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {/* 검수자 Input */}
+                {/* 검수자 Input & Role Check */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    {t.reviewer}
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      {t.reviewer}
+                    </label>
+                    {currentUser.role !== 'REVIEWER' && currentUser.role !== 'ADMIN' && (
+                      <button
+                        type="button"
+                        onClick={() => switchRole('REVIEWER')}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 transition-colors"
+                        title="검수자(Reviewer) 권한으로 전환"
+                      >
+                        ⚡ 검수자 권한 활성화
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={reviewerName}
@@ -623,42 +781,42 @@ export const ReviewModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleVerdictClick('APPROVED')}
-                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 ${
+                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
                         selectedVerdict === 'APPROVED'
-                          ? 'bg-emerald-600 ring-2 ring-emerald-600 ring-offset-1 shadow-md font-extrabold'
-                          : 'bg-emerald-600/75 hover:bg-emerald-600 hover:shadow-xs'
+                          ? 'bg-emerald-600 ring-2 ring-emerald-500 ring-offset-2 shadow-md font-extrabold'
+                          : 'bg-emerald-600/80 hover:bg-emerald-600 hover:shadow-xs'
                       }`}
                       title="클릭하여 즉시 '승인 완료' 상태로 저장합니다."
                     >
-                      {selectedVerdict === 'APPROVED' && <CheckCircle2 className="w-3 h-3 shrink-0" />}
+                      {selectedVerdict === 'APPROVED' && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
                       <span>{t.btnApprove}</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleVerdictClick('REJECTED')}
-                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 ${
+                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
                         selectedVerdict === 'REJECTED'
-                          ? 'bg-red-600 ring-2 ring-red-600 ring-offset-1 shadow-md font-extrabold'
-                          : 'bg-red-600/75 hover:bg-red-600 hover:shadow-xs'
+                          ? 'bg-red-600 ring-2 ring-red-500 ring-offset-2 shadow-md font-extrabold'
+                          : 'bg-red-600/80 hover:bg-red-600 hover:shadow-xs'
                       }`}
                       title="클릭하여 즉시 '검수 반려' 상태로 저장하고 사유 입력을 활성화합니다."
                     >
-                      {selectedVerdict === 'REJECTED' && <XCircle className="w-3 h-3 shrink-0" />}
+                      {selectedVerdict === 'REJECTED' && <XCircle className="w-3.5 h-3.5 shrink-0" />}
                       <span>{t.btnReject}</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleVerdictClick('PENDING')}
-                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 ${
+                      className={`flex-1 py-1.5 rounded-md text-xs font-bold text-white transition-all transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer ${
                         selectedVerdict === 'PENDING'
-                          ? 'bg-slate-700 ring-2 ring-slate-700 ring-offset-1 shadow-md font-extrabold'
-                          : 'bg-slate-700/75 hover:bg-slate-700 hover:shadow-xs'
+                          ? 'bg-slate-700 ring-2 ring-slate-600 ring-offset-2 shadow-md font-extrabold'
+                          : 'bg-slate-700/80 hover:bg-slate-700 hover:shadow-xs'
                       }`}
                       title="클릭하여 '검수 대기' 상태로 전환합니다."
                     >
-                      {selectedVerdict === 'PENDING' && <Clock className="w-3 h-3 shrink-0" />}
+                      {selectedVerdict === 'PENDING' && <Clock className="w-3.5 h-3.5 shrink-0" />}
                       <span>{t.btnPending}</span>
                     </button>
                   </div>
