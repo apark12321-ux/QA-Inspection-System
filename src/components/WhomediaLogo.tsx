@@ -24,28 +24,28 @@ export const WhomediaLogo: React.FC<WhomediaLogoProps> = ({
 
   const textSizes = {
     sm: {
-      title: 'text-sm font-black tracking-tight',
+      title: 'text-sm font-bold tracking-tight',
       sub: 'text-[9px] font-medium tracking-normal'
     },
     md: {
-      title: 'text-base font-black tracking-tight',
-      sub: 'text-[10px] font-medium tracking-normal'
+      title: 'text-base font-bold tracking-tight',
+      sub: 'text-[11px] font-medium tracking-normal'
     },
     lg: {
-      title: 'text-lg font-black tracking-tight',
+      title: 'text-lg font-bold tracking-tight',
       sub: 'text-xs font-medium tracking-normal'
     },
     xl: {
-      title: 'text-2xl font-black tracking-tight',
+      title: 'text-2xl font-bold tracking-tight',
       sub: 'text-sm font-medium tracking-normal'
     }
   };
 
   return (
     <div className={`flex items-center gap-2.5 select-none ${className}`}>
-      {/* WHOMEDIA Signature Emblem Icon with Red & Dark Slate styling */}
+      {/* Modern Video QA Emblem: Indigo & Blue gradient with play checkmark */}
       <div
-        className={`${iconSizes[size]} relative bg-gradient-to-br from-red-600 via-rose-600 to-red-700 flex items-center justify-center text-white shadow-md shadow-red-500/20 shrink-0 border border-red-400/30 overflow-hidden`}
+        className={`${iconSizes[size]} relative bg-gradient-to-br from-blue-600 via-indigo-600 to-slate-900 flex items-center justify-center text-white shadow-md shadow-blue-500/15 shrink-0 border border-blue-400/25 overflow-hidden`}
       >
         <svg
           viewBox="0 0 40 40"
@@ -53,55 +53,51 @@ export const WhomediaLogo: React.FC<WhomediaLogoProps> = ({
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <defs>
-            <linearGradient id="wmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="100%" stopColor="#fecdd3" />
-            </linearGradient>
-            <linearGradient id="wmPlay" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="100%" stopColor="#fbbf24" />
-            </linearGradient>
-          </defs>
-
-          {/* Dynamic Media Waves / Geometric W */}
+          {/* Rounded Video Display outline */}
+          <rect
+            x="5"
+            y="7"
+            width="30"
+            height="22"
+            rx="4"
+            stroke="white"
+            strokeWidth="2.4"
+            strokeOpacity="0.9"
+          />
+          {/* Stand */}
           <path
-            d="M8 12 L14 27 L20 16 L26 27 L32 12"
-            stroke="url(#wmGrad)"
-            strokeWidth="3.4"
+            d="M16 29 L24 29 M20 29 L20 33 M13 33 L27 33"
+            stroke="white"
+            strokeWidth="2.2"
             strokeLinecap="round"
-            strokeLinejoin="round"
           />
-
-          {/* Media Play Accent Wedge */}
+          {/* Play & QA Check Accent */}
           <polygon
-            points="18,18 24,21 18,24"
-            fill="url(#wmPlay)"
+            points="16,13 25,18 16,23"
+            fill="#38bdf8"
           />
-
-          {/* Lens focus circle */}
+          {/* Verification Dot */}
           <circle
-            cx="20"
-            cy="20"
-            r="16"
+            cx="29"
+            cy="11"
+            r="3.5"
+            fill="#10b981"
             stroke="white"
             strokeWidth="1.2"
-            strokeOpacity="0.3"
-            strokeDasharray="2 3"
           />
         </svg>
       </div>
 
-      {/* WHOMEDIA Typography: WHO in RED, MEDIA in BLACK */}
+      {/* Official Corporate Brand Lockup: WHOMEDIA · (주)후미디어 영상 검수 시스템 */}
       {showText && (
         <div className="flex flex-col leading-tight">
-          <div className="flex items-center gap-1.5">
-            <span className={`${textSizes[size].title} font-sans uppercase`}>
-              <span className="text-red-600 font-black tracking-tight">WHO</span>
-              <span className={isDarkTheme ? 'text-white font-black tracking-tight' : 'text-black font-black tracking-tight'}>MEDIA</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`${textSizes[size].title} font-black tracking-tight`}>
+              <span className="text-red-600">WHO</span><span className={isDarkTheme ? 'text-white' : 'text-slate-900'}>MEDIA</span>
             </span>
-            <span className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200/80 px-1.5 py-0.2 rounded font-sans">
-              (주)후미디어
+            <span className="text-slate-400 font-bold" aria-hidden="true">·</span>
+            <span className={`${textSizes[size].title} font-bold tracking-tight ${isDarkTheme ? 'text-slate-100' : 'text-slate-900'}`}>
+              (주)후미디어 영상 검수 시스템
             </span>
           </div>
           {subtitle && (

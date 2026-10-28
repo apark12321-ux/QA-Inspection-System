@@ -104,31 +104,31 @@ export const VideoTable: React.FC = () => {
     switch (status) {
       case 'APPROVED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>승인</span>
+            <span>{t.statusApproved}</span>
           </span>
         );
       case 'REJECTED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-300 shadow-2xs">
             <XCircle className="w-3.5 h-3.5 text-rose-600" />
-            <span>반려</span>
+            <span>{t.statusRejected}</span>
           </span>
         );
       case 'PROCESSING':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-            <span>처리중</span>
+            <span>{t.statusProcessing}</span>
           </span>
         );
       case 'PENDING':
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
             <Clock className="w-3.5 h-3.5 text-slate-500" />
-            <span>검수대기</span>
+            <span>{t.statusPending}</span>
           </span>
         );
     }
@@ -136,18 +136,18 @@ export const VideoTable: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* ================= 1. PROJECT HEADER BAR (MATCHING SCREENSHOT 1) ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs">
+      {/* ================= 1. PROJECT HEADER BAR ================= */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-xl border border-slate-200/90 shadow-2xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Play className="w-4 h-4 fill-current ml-0.5" />
+          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <Play className="w-5 h-5 fill-current ml-0.5" />
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight">
+            <h1 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 tracking-tight leading-tight">
               {displayedProject?.name || 'Bio Health 시대의 ESG와 지속 가능한 성장'}
             </h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              전용 검수 슬러그: <span className="font-mono text-slate-700">/{selectedProjectAlias}</span> · 총 {projectVideos.length}개 차시 검수 대상
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+              {language === 'ko' ? '전용 검수 주소:' : 'Slug:'} <span className="font-mono text-slate-800 font-semibold">/{selectedProjectAlias}</span> · {language === 'ko' ? `총 ${projectVideos.length}개 차시 검수 대상` : `Total ${projectVideos.length} sessions to review`}
             </p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export const VideoTable: React.FC = () => {
           <select
             value={selectedProjectAlias}
             onChange={e => handleSelectProject(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 transition-colors focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[260px] truncate"
+            className="px-3 py-2 bg-slate-50 hover:bg-white border border-slate-300 rounded-lg text-xs sm:text-sm font-semibold text-slate-800 transition-colors focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[280px] truncate"
           >
             {projects.map(p => (
               <option key={p.id} value={p.alias}>
@@ -169,41 +169,41 @@ export const VideoTable: React.FC = () => {
           <button
             type="button"
             onClick={handleCopyShareLink}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95"
-            title="검수자 전용 접속 링크 복사"
+            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs sm:text-sm font-semibold transition-all shadow-2xs active:scale-95"
+            title={t.shareLink}
           >
             {copiedLink ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-emerald-700 font-bold">복사 완료!</span>
+                <Check className="w-4 h-4 text-emerald-600" />
+                <span className="text-emerald-700 font-bold">{language === 'ko' ? '복사 완료!' : 'Copied!'}</span>
               </>
             ) : (
               <>
-                <LinkIcon className="w-3.5 h-3.5 text-blue-600" />
-                <span>링크 복사</span>
+                <LinkIcon className="w-4 h-4 text-blue-600" />
+                <span>{language === 'ko' ? '링크 복사' : 'Copy Link'}</span>
               </>
             )}
           </button>
         </div>
       </div>
 
-      {/* ================= 2. MAIN TABLE CARD (MATCHING SCREENSHOT 1) ================= */}
+      {/* ================= 2. MAIN TABLE CARD ================= */}
       <div className="bg-white rounded-xl shadow-2xs border border-slate-200/90 overflow-hidden">
         
-        {/* Table Header Row: 차시 목록 (총 6개 동영상) ... 6건 / 전체 83건 */}
+        {/* Table Header Row */}
         <div className="p-4 sm:p-5 border-b border-slate-100 bg-white">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                <span>차시 목록 (총 {projectVideos.length}개 동영상)</span>
-                <span className="text-xs font-normal text-slate-400 hidden sm:inline">
-                  프로젝트 · 차시 · 동영상파일명 확인하고 재생 버튼을 누르세요.
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <span>{t.subTitle.replace('{count}', String(projectVideos.length))}</span>
+                <span className="text-xs sm:text-sm font-normal text-slate-500 hidden sm:inline">
+                  {t.subDesc}
                 </span>
               </h2>
             </div>
             
-            <div className="text-xs font-medium tabular-nums text-slate-500 shrink-0">
-              {filteredVideos.length}건 / 전체 83건
+            <div className="text-xs sm:text-sm font-semibold tabular-nums text-slate-500 shrink-0">
+              {t.totalSummary.replace('{count}', String(filteredVideos.length)).replace('{total}', '83')}
             </div>
           </div>
 
@@ -215,46 +215,46 @@ export const VideoTable: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="프로젝트명 · 차시명 · 동영상 파일명 검색"
-                className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-400 text-slate-900"
+                placeholder={t.searchPlaceholder}
+                className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-[15px] bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-400 text-slate-900"
               />
             </div>
 
-            <div className="sm:w-44 shrink-0">
+            <div className="sm:w-48 shrink-0">
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value as any)}
-                className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-700 font-medium cursor-pointer"
+                className="w-full px-3 py-2.5 text-xs sm:text-[15px] bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium cursor-pointer"
               >
-                <option value="ALL">검수 상태: 전체</option>
-                <option value="PENDING">검수대기</option>
-                <option value="APPROVED">승인 완료</option>
-                <option value="REJECTED">검수 반려</option>
-                <option value="PROCESSING">처리중</option>
+                <option value="ALL">{t.allStatus}</option>
+                <option value="PENDING">{t.statusPending}</option>
+                <option value="APPROVED">{t.statusApproved}</option>
+                <option value="REJECTED">{t.statusRejected}</option>
+                <option value="PROCESSING">{t.statusProcessing}</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* Exact Table Layout: No | 차시명 | 주차 | 동영상 파일명 | 상태 | 재생 */}
+        {/* Table: No | 차시명 | 주차 | 동영상 파일명 | 상태 | 재생 */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm border-collapse">
+          <table className="w-full text-left text-xs sm:text-[15px] border-collapse">
             <thead>
-              <tr className="bg-slate-50/75 border-b border-slate-200 text-slate-600 font-bold text-xs">
-                <th className="py-3 px-4 w-12 text-center text-slate-400">No</th>
-                <th className="py-3 px-4 sm:px-6 w-1/3">차시명</th>
-                <th className="py-3 px-4 sm:px-6 w-24">주차</th>
-                <th className="py-3 px-4 sm:px-6">동영상 파일명</th>
-                <th className="py-3 px-4 text-center w-28">상태</th>
-                <th className="py-3 px-4 sm:px-6 text-right w-24">재생</th>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-700 font-bold text-xs sm:text-sm">
+                <th className="py-3.5 px-4 w-14 text-center text-slate-400">No</th>
+                <th className="py-3.5 px-4 sm:px-6 w-1/3">{t.colSession}</th>
+                <th className="py-3.5 px-4 sm:px-6 w-28">{t.colWeek}</th>
+                <th className="py-3.5 px-4 sm:px-6">{t.colFileName}</th>
+                <th className="py-3.5 px-4 text-center w-32">{t.colStatus}</th>
+                <th className="py-3.5 px-4 sm:px-6 text-right w-28">{t.colPlay}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredVideos.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400">
-                    <p className="text-sm">검색 조건과 일치하는 동영상이 없습니다.</p>
-                    <p className="text-xs mt-1 text-slate-400">검색어를 지우거나 검수 상태 필터를 변경해 보세요.</p>
+                    <p className="text-base">{language === 'ko' ? '검색 조건과 일치하는 동영상이 없습니다.' : 'No videos match the search criteria.'}</p>
+                    <p className="text-xs sm:text-sm mt-1 text-slate-400">{language === 'ko' ? '검색어를 지우거나 검수 상태 필터를 변경해 보세요.' : 'Try clearing search terms or changing the status filter.'}</p>
                   </td>
                 </tr>
               ) : (
@@ -270,18 +270,18 @@ export const VideoTable: React.FC = () => {
 
                     {/* 차시명 */}
                     <td className="py-3.5 px-4 sm:px-6 text-slate-800 font-semibold align-middle">
-                      <div className="line-clamp-2">
+                      <div className="line-clamp-2 text-slate-900 font-medium">
                         {video.sessionTitle}
                       </div>
                       {video.reviews.length > 0 && (
-                        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400 font-normal">
-                          <MessageSquare className="w-3 h-3 text-slate-400" />
-                          <span>검수 의견 {video.reviews.length}건</span>
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-400 font-normal">
+                          <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{language === 'ko' ? `검수 의견 ${video.reviews.length}건` : `${video.reviews.length} notes`}</span>
                           {video.subtitles.length > 0 && (
                             <>
-                              <span>·</span>
+                              <span aria-hidden="true">·</span>
                               <span className="text-blue-600 flex items-center gap-0.5 font-medium">
-                                <Sparkles className="w-2.5 h-2.5" /> AI 자막
+                                <Sparkles className="w-3 h-3" /> {language === 'ko' ? 'AI 자막' : 'Subtitles'}
                               </span>
                             </>
                           )}
@@ -291,17 +291,17 @@ export const VideoTable: React.FC = () => {
 
                     {/* 주차 */}
                     <td className="py-3.5 px-4 sm:px-6 text-slate-600 align-middle whitespace-nowrap">
-                      <span className="px-2 py-0.5 bg-slate-100 rounded text-xs font-medium text-slate-700">
-                        {video.weekId ? `${video.weekId}주차` : '1주차'}
+                      <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-semibold text-slate-700">
+                        {video.weekId ? (language === 'ko' ? `${video.weekId}주차` : `Week ${video.weekId}`) : (language === 'ko' ? '1주차' : 'Week 1')}
                       </span>
                     </td>
 
                     {/* 동영상 파일명 & 메타데이터 */}
                     <td className="py-3.5 px-4 sm:px-6 align-middle">
-                      <div className="font-mono text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                      <div className="font-mono text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
                         {video.fileName}
                       </div>
-                      <div className="text-[11px] text-slate-400 font-mono mt-0.5 tabular-nums">
+                      <div className="text-xs text-slate-400 font-mono mt-0.5 tabular-nums">
                         {video.fileSize} · {video.uploadedAt}
                       </div>
                     </td>
@@ -310,8 +310,8 @@ export const VideoTable: React.FC = () => {
                     <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
                       {renderStatusBadge(video.status)}
                       {video.reviewerName && (
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          검수: {video.reviewerName}
+                        <div className="text-[11px] text-slate-400 mt-1">
+                          {language === 'ko' ? '검수:' : 'By:'} {video.reviewerName}
                         </div>
                       )}
                     </td>
@@ -321,10 +321,10 @@ export const VideoTable: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedVideo(video)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-lg text-xs shadow-2xs transition-all transform active:scale-95 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg text-xs sm:text-sm shadow-2xs transition-all transform active:scale-95 cursor-pointer"
                       >
                         <Play className="w-3.5 h-3.5 fill-current" />
-                        <span>재생</span>
+                        <span>{t.playButton}</span>
                       </button>
                     </td>
                   </tr>
@@ -335,10 +335,10 @@ export const VideoTable: React.FC = () => {
         </div>
 
         {/* Table Footer info */}
-        <div className="px-4 sm:px-6 py-3 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
-          <span>* 검수 의견 작성 시 현재 재생 시점(타임코드)이 자동으로 스탬프됩니다.</span>
-          <span className="font-mono tabular-nums text-slate-500">
-            표시 중: {filteredVideos.length} / {projectVideos.length}건
+        <div className="px-4 sm:px-6 py-3.5 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-xs sm:text-sm text-slate-400 gap-2">
+          <span>{language === 'ko' ? '* 검수 의견 작성 시 현재 재생 시점(타임코드)이 자동으로 기록됩니다.' : '* Timestamps are automatically captured when adding comments.'}</span>
+          <span className="font-mono tabular-nums text-slate-500 font-medium">
+            {language === 'ko' ? '표시 중:' : 'Showing:'} {filteredVideos.length} / {projectVideos.length}건
           </span>
         </div>
 

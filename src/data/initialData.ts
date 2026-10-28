@@ -69,29 +69,101 @@ export const INITIAL_VIDEOS: VideoSession[] = [
       {
         id: 2,
         startTime: '00:08',
-        endTime: '00:20',
+        endTime: '00:22',
         startSeconds: 8,
-        endSeconds: 20,
-        textKo: '오늘은 ESG 마인드 없이는 기업의 지속 가능한 성장도 불가능하다는 주제를 다룹니다.',
-        textEn: 'Today we discuss why sustainable growth is impossible without an ESG mindset.'
+        endSeconds: 22,
+        textKo: '오늘은 ESG 마인드 없이는 기업의 지속 가능한 성장도 불가능하다는 핵심 주제를 다루겠습니다.',
+        textEn: 'Today we discuss the core thesis: sustainable corporate growth is impossible without an ESG mindset.'
       },
       {
         id: 3,
-        startTime: '00:20',
-        endTime: '00:35',
-        startSeconds: 20,
-        endSeconds: 35,
-        textKo: '한광식 교수와 함께 Bio Health 산업 현장의 실질적인 사례를 점검해 보겠습니다.',
-        textEn: 'Together with Professor Kwang-Sik Han, we will review practical cases in the Bio Health industry.'
+        startTime: '00:22',
+        endTime: '00:40',
+        startSeconds: 22,
+        endSeconds: 40,
+        textKo: '한광식 교수와 함께 Bio Health 산업 현장의 실질적인 사례를 입체적으로 점검해 보겠습니다.',
+        textEn: 'Together with Professor Kwang-Sik Han, we will examine practical cases across the Bio Health industry.'
       },
       {
         id: 4,
-        startTime: '00:35',
-        endTime: '00:50',
-        startSeconds: 35,
-        endSeconds: 50,
-        textKo: '환경(E), 사회적 책임(S), 투명한 지배구조(G)가 기업 경쟁력의 필수 지표가 되었습니다.',
-        textEn: 'Environment (E), Social Responsibility (S), and Transparent Governance (G) have become essential metrics.'
+        startTime: '00:40',
+        endTime: '01:02',
+        startSeconds: 40,
+        endSeconds: 62,
+        textKo: '환경(E), 사회적 책임(S), 투명한 지배구조(G)는 이제 단순한 권고사항이 아닌 기업 생존의 필수 지표입니다.',
+        textEn: 'Environment (E), Social Responsibility (S), and Transparent Governance (G) are now indispensable survival metrics.'
+      },
+      {
+        id: 5,
+        startTime: '01:02',
+        endTime: '01:30',
+        startSeconds: 62,
+        endSeconds: 90,
+        textKo: '특히 바이오 헬스케어 분야는 연구 윤리와 임상 데이터 신뢰성, 공급망 ESG 실사가 기업 가치를 직접 결정합니다.',
+        textEn: 'Particularly in bio healthcare, research ethics, clinical data credibility, and supply chain ESG audits determine enterprise valuation.'
+      },
+      {
+        id: 6,
+        startTime: '01:30',
+        endTime: '02:05',
+        startSeconds: 90,
+        endSeconds: 125,
+        textKo: '글로벌 공시 기준인 GRI Standards와 K-ESG 가이드라인의 핵심 프레임워크를 슬라이드와 함께 확인해 보겠습니다.',
+        textEn: 'Let us inspect the core frameworks of global disclosure standards including GRI Standards and K-ESG guidelines.'
+      },
+      {
+        id: 7,
+        startTime: '02:05',
+        endTime: '02:45',
+        startSeconds: 125,
+        endSeconds: 165,
+        textKo: 'Scope 1, 2, 3 온실가스 배출량 산정과 탄소중립 로드맵 수립에 관한 주요 대학-기업 연계 사례를 분석합니다.',
+        textEn: 'We analyze Scope 1, 2, and 3 greenhouse gas inventories and carbon neutrality roadmaps from industry-academia partnerships.'
+      },
+      {
+        id: 8,
+        startTime: '02:45',
+        endTime: '03:30',
+        startSeconds: 165,
+        endSeconds: 210,
+        textKo: '지역사회 보건 향상 및 상생 협력 프로그램(S)을 통해 사회적 가치를 창출하는 모델을 고찰하겠습니다.',
+        textEn: 'We review models generating social value through community healthcare enhancement and shared growth programs.'
+      },
+      {
+        id: 9,
+        startTime: '03:30',
+        endTime: '04:20',
+        startSeconds: 210,
+        endSeconds: 260,
+        textKo: '이사회 독립성과 감사 위원회의 전문성을 강화하는 윤리 거버넌스(G) 구축 방안을 다룹니다.',
+        textEn: 'We discuss constructing ethical governance that reinforces board independence and audit committee expertise.'
+      },
+      {
+        id: 10,
+        startTime: '04:20',
+        endTime: '05:15',
+        startSeconds: 260,
+        endSeconds: 315,
+        textKo: '현장 실무자가 지속가능경영 보고서를 작성할 때 반드시 준수해야 할 정량적 KPI 설정 원칙입니다.',
+        textEn: 'These are quantitative KPI principles practitioners must follow when preparing sustainability reports.'
+      },
+      {
+        id: 11,
+        startTime: '05:15',
+        endTime: '06:10',
+        startSeconds: 315,
+        endSeconds: 370,
+        textKo: '지금까지 살펴본 ESG 핵심 요소를 바탕으로 현업에서의 단계별 적용 전략을 점검해 보시기 바랍니다.',
+        textEn: 'Based on the ESG principles covered today, please review your staged execution strategy in the workplace.'
+      },
+      {
+        id: 12,
+        startTime: '06:10',
+        endTime: '07:00',
+        startSeconds: 370,
+        endSeconds: 420,
+        textKo: '다음 차시에서는 Bio Health 기업의 실제 ESG 평가 대응 및 글로벌 인증 실무를 이어가겠습니다.',
+        textEn: 'In the next session, we will continue with practical responses to ESG ratings and global certification audits.'
       }
     ],
     pipeline: {

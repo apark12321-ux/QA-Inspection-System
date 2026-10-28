@@ -400,8 +400,8 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
               </span>
               <h2 className="text-sm font-bold text-slate-900">동영상 업로드 (여러 개 동시)</h2>
             </div>
-            <p className="text-xs text-slate-400 font-normal">
-              파일을 끌어다 놓거나 선택하세요. 외부 영상(유튜브/비메오/구글 드라이브) 링크로 트래픽 비용 0원 검수도 가능합니다.
+            <p className="text-xs text-slate-500 font-normal">
+              파일을 끌어다 놓거나 선택하세요. 동영상 파일 직접 업로드 및 외부 스트림 링크를 지원합니다.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -445,7 +445,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                 </div>
               </div>
 
-              {/* Upload Mode Switcher: 파일 업로드 vs 외부 영상 링크 (트래픽 0원) */}
+              {/* Upload Mode Switcher: 파일 업로드 vs 외부 영상 링크 */}
               <div className="flex items-center gap-2 pt-1">
                 <button
                   type="button"
@@ -456,7 +456,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  S3 파일 업로드
+                  동영상 파일 업로드
                 </button>
                 <button
                   type="button"
@@ -468,7 +468,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                   }`}
                 >
                   <Globe className="w-3.5 h-3.5" />
-                  <span>외부 영상 링크 (유튜브/비메오/구글 드라이브)</span>
+                  <span>외부 영상 스트림 링크</span>
                 </button>
               </div>
 

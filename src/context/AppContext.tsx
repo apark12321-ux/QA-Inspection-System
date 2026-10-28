@@ -116,7 +116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error(e);
     }
-    return 'registration'; // Defaults to registration mode matching the user's primary workflow
+    return 'review'; // Defaults to clean inspection review portal for clients & reviewers
   });
 
   const setUserViewMode = (mode: 'registration' | 'review') => {

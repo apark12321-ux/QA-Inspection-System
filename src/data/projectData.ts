@@ -3,7 +3,7 @@ import { ProjectItem, VideoSession } from '../types';
 export const INITIAL_PROJECTS: ProjectItem[] = [
   {
     id: 'proj-inha',
-    name: '인하대학교 [대학혁신지원사업] 2026학년도 오픈런 공개용 온라인 콘텐츠 교과목 개발 - 제안샘플 (주)후미디어',
+    name: '인하대학교 [대학혁신지원사업] 2026학년도 오픈런 공개용 온라인 콘텐츠 교과목 개발',
     alias: 'inha26',
     weekCount: 1,
     sessionCount: 3,

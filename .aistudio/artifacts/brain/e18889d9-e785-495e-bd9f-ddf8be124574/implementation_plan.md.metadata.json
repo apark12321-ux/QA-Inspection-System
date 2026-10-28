@@ -1,6 +1,6 @@
 {
-  "summary":  "Complete implementation plan documenting Cloud Run deployment fix, WHOMEDIA red/black branding, and left-sidebar / right-work-area layout transformation.",
-  "updatedAt":  "2026-10-28T14:20:50.335530381Z",
+  "summary":  "사용자 선택 사항(노토산스 15px+ 폰트, 검수/관리자 분리, 현실적인 강의 자막 및 SRT/VTT 직접 업로드/편집, 한영 다국어 연동, 불필요한 인프라 문구 제거)을 반영한 최종 실행 계획서입니다.",
+  "updatedAt":  "2026-10-28T15:19:05.016185971Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
