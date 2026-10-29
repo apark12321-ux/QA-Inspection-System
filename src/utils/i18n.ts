@@ -1,7 +1,7 @@
 export const translations = {
   ko: {
-    appTitle: 'WHOMEDIA · (주)후미디어 영상 검수 시스템',
-    brandName: '(주)후미디어 영상 검수 시스템',
+    appTitle: 'WHOMEDIA · 영상 검수 시스템',
+    brandName: '영상 검수 시스템',
     subTitle: '차시 목록 (총 {count}개 동영상)',
     subDesc: '프로젝트 · 차시 · 동영상파일명 확인하고 재생 버튼을 누르세요.',
     totalSummary: '{count}건 / 전체 {total}건',
@@ -62,7 +62,7 @@ export const translations = {
     exportJson: 'JSON 내보내기',
     adminModeBtn: '관리자 모드',
     backToReviewBtn: '← 검수 화면으로 돌아가기',
-    reviewPortalHeader: 'WHOMEDIA · (주)후미디어 영상 검수 시스템',
+    reviewPortalHeader: 'WHOMEDIA · 영상 검수 시스템',
     reviewPortalSub: '동영상 강의 품질 검수 및 타임코드 피드백'
   },
   en: {
