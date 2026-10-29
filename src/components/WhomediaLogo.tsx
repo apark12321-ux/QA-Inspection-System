@@ -88,16 +88,16 @@ export const WhomediaLogo: React.FC<WhomediaLogoProps> = ({
         </svg>
       </div>
 
-      {/* Official Corporate Brand Lockup: WHOMEDIA · 영상 검수 시스템 */}
+      {/* Official Corporate Brand Lockup: WHOMEDIA · (주)후미디어 영상 검수 시스템 */}
       {showText && (
         <div className="flex flex-col leading-tight">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`${textSizes[size].title} font-black tracking-tight`}>
               <span className="text-red-600">WHO</span><span className={isDarkTheme ? 'text-white' : 'text-slate-900'}>MEDIA</span>
             </span>
-            <span className="text-fuchsia-500 font-bold" aria-hidden="true">·</span>
+            <span className="text-slate-400 font-bold" aria-hidden="true">·</span>
             <span className={`${textSizes[size].title} font-bold tracking-tight ${isDarkTheme ? 'text-slate-100' : 'text-slate-900'}`}>
-              영상 검수 시스템
+              (주)후미디어 영상 검수 시스템
             </span>
           </div>
           {subtitle && (
