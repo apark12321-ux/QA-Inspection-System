@@ -15,7 +15,8 @@ import {
   ArrowLeft,
   Globe,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Upload
 } from 'lucide-react';
 
 export const AdminLayout: React.FC = () => {
@@ -25,7 +26,9 @@ export const AdminLayout: React.FC = () => {
     setPortalMode,
     language,
     setLanguage,
-    notifications
+    notifications,
+    setUploadModalOpen,
+    setIsAdminMode
   } = useApp();
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -107,11 +110,26 @@ export const AdminLayout: React.FC = () => {
           ))}
         </nav>
 
-        {/* Back to User Portal Action */}
+        {/* Upload Action */}
         <div className="p-3 border-t border-slate-800">
           <button
-            onClick={() => setPortalMode('user')}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition-colors border border-slate-700"
+            type="button"
+            onClick={() => setUploadModalOpen(true)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+          >
+            <Upload className="w-4 h-4" />
+            <span>새 동영상 업로드</span>
+          </button>
+        </div>
+
+        {/* Back to User Portal Action */}
+        <div className="p-3 pt-0">
+          <button
+            onClick={() => {
+              setIsAdminMode(true);
+              setPortalMode('user');
+            }}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition-colors border border-slate-700 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>검수 포털로 돌아가기</span>
@@ -139,10 +157,23 @@ export const AdminLayout: React.FC = () => {
           {/* Controls */}
           <div className="flex items-center gap-3">
             
+            {/* Direct Video Upload Button */}
+            <button
+              type="button"
+              onClick={() => setUploadModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+            >
+              <Upload className="w-4 h-4" />
+              <span>동영상 업로드</span>
+            </button>
+
             {/* Quick Switch to User Portal */}
             <button
-              onClick={() => setPortalMode('user')}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-colors border border-blue-200"
+              onClick={() => {
+                setIsAdminMode(true);
+                setPortalMode('user');
+              }}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span>일반 검수 화면 보기</span>

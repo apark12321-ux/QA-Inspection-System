@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { HardDrive, Play, Trash2, Video } from 'lucide-react';
+import { HardDrive, Play, Trash2, Video, Upload } from 'lucide-react';
 
 function formatBytes(bytes: number): string {
   if (!bytes) return '용량 정보 없음';
@@ -9,7 +9,7 @@ function formatBytes(bytes: number): string {
 }
 
 export const MediaStorageManager: React.FC = () => {
-  const { videos, projects, setSelectedVideo, deleteVideo } = useApp();
+  const { videos, projects, setSelectedVideo, deleteVideo, setUploadModalOpen } = useApp();
   const storedCount = videos.filter(video => Boolean(video.s3Key)).length;
   const externalCount = videos.length - storedCount;
   const knownBytes = useMemo(() => videos.reduce((total, video) => total + (video.sizeBytes || 0), 0), [videos]);
@@ -17,9 +17,22 @@ export const MediaStorageManager: React.FC = () => {
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0"><HardDrive size={20} /></div>
-          <div><h2 className="text-lg font-bold text-slate-900">영상 자산</h2><p className="mt-1 text-sm text-slate-500">등록된 실제 영상 원본과 외부 링크를 확인합니다.</p></div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0"><HardDrive size={20} /></div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">영상 자산</h2>
+              <p className="mt-1 text-sm text-slate-500">등록된 실제 영상 원본과 외부 링크를 확인하고 관리합니다.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUploadModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer self-start sm:self-auto active:scale-95"
+          >
+            <Upload className="w-4 h-4" />
+            <span>동영상 업로드</span>
+          </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><span className="text-xs text-slate-500">전체 영상</span><strong className="block mt-1 text-2xl text-slate-900">{videos.length}</strong></div>
@@ -31,7 +44,18 @@ export const MediaStorageManager: React.FC = () => {
 
       <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         {videos.length === 0 ? (
-          <div className="px-5 py-14 text-center"><Video className="w-8 h-8 text-slate-300 mx-auto mb-2" /><p className="text-sm text-slate-500">등록된 영상이 없습니다.</p></div>
+          <div className="px-5 py-14 text-center">
+            <Video className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm text-slate-500 mb-3">등록된 영상이 없습니다.</p>
+            <button
+              type="button"
+              onClick={() => setUploadModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+            >
+              <Upload className="w-4 h-4" />
+              <span>첫 동영상 업로드하기</span>
+            </button>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">

@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { downloadFile } from '../utils/formatters';
-import { BarChart3, CheckCircle2, Clock3, Download, Film, MessageSquare, XCircle } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock3, Download, Film, MessageSquare, XCircle, Upload } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const { videos, setSelectedVideo } = useApp();
+  const { videos, setSelectedVideo, setUploadModalOpen } = useApp();
   const counts = useMemo(() => ({
     total: videos.length,
     approved: videos.filter(video => video.status === 'APPROVED').length,
@@ -63,7 +63,17 @@ export const AdminDashboard: React.FC = () => {
     <div className="space-y-5">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3"><div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0"><BarChart3 size={20} /></div><div><h2 className="text-lg font-bold text-slate-900">검수 현황</h2><p className="mt-1 text-sm text-slate-500">등록된 영상과 실제 검수 상태를 집계합니다.</p></div></div>
-        <button type="button" onClick={exportCsv} disabled={!videos.length} className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white text-xs font-bold"><Download size={15} />CSV 내보내기</button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setUploadModalOpen(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+          >
+            <Upload size={15} />
+            <span>동영상 업로드</span>
+          </button>
+          <button type="button" onClick={exportCsv} disabled={!videos.length} className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:bg-slate-100 disabled:text-slate-400 text-xs font-semibold cursor-pointer border border-slate-200"><Download size={14} />CSV 내보내기</button>
+        </div>
       </section>
 
       <section className="grid grid-cols-2 xl:grid-cols-4 gap-3">

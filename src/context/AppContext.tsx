@@ -270,7 +270,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return false;
       }
       const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '');
-      if (pathname && pathname !== 'admin') {
+      if (pathname === 'admin' || pathname.endsWith('/admin')) {
+        return true;
+      }
+      if (pathname) {
         // Direct project link access like /khcu or /inha26 is external evaluator mode
         return false;
       }
