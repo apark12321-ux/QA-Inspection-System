@@ -34,8 +34,9 @@ interface AppContextType {
   setSelectedVideo: (v: VideoSession | null) => void;
   portalMode: 'user' | 'admin';
   setPortalMode: (mode: 'user' | 'admin') => void;
-  adminTab: 'dashboard' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws';
-  setAdminTab: (tab: 'dashboard' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws') => void;
+  adminTab: 'dashboard' | 'projects' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws';
+  setAdminTab: (tab: 'dashboard' | 'projects' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws') => void;
+  setCurrentUserName: (name: string) => void;
   activeTab: 'list' | 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws';
   setActiveTab: (tab: 'list' | 'dashboard' | 'pipeline' | 'rbac' | 'audit' | 'aws') => void;
   language: 'ko' | 'en';
@@ -244,15 +245,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [users, setUsers] = useState<UserAccount[]>([]);
 
-  const [currentUser, setCurrentUser] = useState<UserAccount>({
-    id: 'workspace-reviewer',
-    name: '검수자',
-    email: '',
-    role: 'REVIEWER',
-    department: '',
-    status: 'active',
-    lastActive: ''
+  const [currentUser, setCurrentUser] = useState<UserAccount>(() => {
+    let savedName = '검수자';
+    try {
+      const stored = localStorage.getItem('video_review_user_name_v1');
+      if (stored) savedName = stored;
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      id: 'workspace-reviewer',
+      name: savedName,
+      email: '',
+      role: 'REVIEWER',
+      department: '',
+      status: 'active',
+      lastActive: ''
+    };
   });
+
+  const setCurrentUserName = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setCurrentUser(prev => ({ ...prev, name: trimmed }));
+    try {
+      localStorage.setItem('video_review_user_name_v1', trimmed);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
     try {
@@ -351,7 +372,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentProjectSlug, setCurrentProjectSlugState] = useState<string | null>(initialRoute.slug);
   const [portalMode, setPortalModeState] = useState<'user' | 'admin'>(initialRoute.mode);
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(false);
-  const [adminTab, setAdminTab] = useState<'dashboard' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws'>('dashboard');
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'projects' | 'storage' | 'pipeline' | 'rbac' | 'audit' | 'aws'>('dashboard');
 
   const setCurrentProjectSlug = (slug: string | null) => {
     setCurrentProjectSlugState(slug);
@@ -1225,7 +1246,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeProposalSlug,
         setActiveProposalSlug,
         isAdminMode,
-        setIsAdminMode
+        setIsAdminMode,
+        setCurrentUserName
       }}
     >
       {children}

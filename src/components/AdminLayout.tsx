@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { AdminDashboard } from './AdminDashboard';
+import { ProjectRegistrationView } from './ProjectRegistrationView';
 import { PipelineMonitor } from './PipelineMonitor';
 import { AuditLogView } from './AuditLogView';
 import { AwsArchitectureView } from './AwsArchitectureView';
@@ -16,7 +17,8 @@ import {
   Globe,
   ChevronRight,
   ExternalLink,
-  Upload
+  Upload,
+  FolderKanban
 } from 'lucide-react';
 
 export const AdminLayout: React.FC = () => {
@@ -44,6 +46,12 @@ export const AdminLayout: React.FC = () => {
       label: '관리자 대시보드',
       icon: <BarChart3 className="w-4 h-4" />,
       desc: '검수율, 승인/반려 현황 및 종합 지표'
+    },
+    {
+      id: 'projects',
+      label: '프로젝트 & 영상 관리',
+      icon: <FolderKanban className="w-4 h-4" />,
+      desc: '신규 대학 등록, 실제 영상 차시 연결 및 제안서 QR 발급'
     },
     {
       id: 'storage',
@@ -195,6 +203,7 @@ export const AdminLayout: React.FC = () => {
         {/* Content Viewport */}
         <main className="p-6 overflow-y-auto flex-1">
           {adminTab === 'dashboard' && <AdminDashboard />}
+          {adminTab === 'projects' && <ProjectRegistrationView />}
           {adminTab === 'storage' && <MediaStorageManager />}
           {adminTab === 'pipeline' && <PipelineMonitor />}
           {adminTab === 'audit' && <AuditLogView />}

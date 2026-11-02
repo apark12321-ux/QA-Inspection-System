@@ -70,7 +70,7 @@ export const ReviewModal: React.FC = () => {
   const [useCanvasFallback, setUseCanvasFallback] = useState(false);
 
   // Review Form states
-  const [reviewerName, setReviewerName] = useState('');
+  const [reviewerName, setReviewerName] = useState(currentUser?.name || '');
   const [selectedVerdict, setSelectedVerdict] = useState<'APPROVED' | 'REJECTED' | 'PENDING'>('PENDING');
   const [commentText, setCommentText] = useState('');
   const [includeTimestamp, setIncludeTimestamp] = useState(true);
@@ -148,6 +148,10 @@ export const ReviewModal: React.FC = () => {
       }
     }
 
+    if (!reviewerName && currentUser?.name) {
+      setReviewerName(currentUser.name);
+    }
+
     // Always keep verdict button in sync with selected video's status
     const vStatus: 'APPROVED' | 'REJECTED' | 'PENDING' =
       selectedVideo.status === 'APPROVED'
@@ -156,7 +160,7 @@ export const ReviewModal: React.FC = () => {
         ? 'REJECTED'
         : 'PENDING';
     setSelectedVerdict(vStatus);
-  }, [selectedVideo?.id, selectedVideo?.status, currentUser]);
+  }, [selectedVideo?.id, selectedVideo?.status, currentUser, reviewerName]);
 
   // Handle external seek requests (e.g. from share links)
   useEffect(() => {

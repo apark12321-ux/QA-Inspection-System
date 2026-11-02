@@ -14,7 +14,7 @@ export const UploadModal: React.FC = () => {
     activeProject
   } = useApp();
   const [projectId, setProjectId] = useState(activeProject?.id || projects[0]?.id || '');
-  const [lessonId, setLessonId] = useState('');
+  const [weekTitle, setWeekTitle] = useState('1주차');
   const [sessionTitle, setSessionTitle] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [duration, setDuration] = useState(0);
@@ -24,23 +24,10 @@ export const UploadModal: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const project = projects.find(item => item.id === projectId);
-  const lessons = useMemo(() => {
-    if (!project) return [];
-    if (project.sessions?.length) return project.sessions;
-    return (project.weeks || []).flatMap(week => week.sessions.map(session => ({ ...session, weekTitle: week.title })));
-  }, [project]);
-  const selectedLesson = lessons.find(lesson => lesson.id === lessonId);
 
   useEffect(() => {
     if (!projectId && projects.length) setProjectId(activeProject?.id || projects[0].id);
   }, [activeProject?.id, projectId, projects]);
-
-  useEffect(() => {
-    if (!lessonId && lessons.length) {
-      setLessonId(lessons[0].id);
-      setSessionTitle(lessons[0].title);
-    }
-  }, [lessonId, lessons]);
 
   useEffect(() => {
     if (!uploadModalOpen) {
@@ -48,6 +35,7 @@ export const UploadModal: React.FC = () => {
       setUploadProgress(0);
       setIsUploading(false);
       setSelectedFile(null);
+      setSessionTitle('');
     }
   }, [uploadModalOpen]);
 
@@ -61,6 +49,10 @@ export const UploadModal: React.FC = () => {
     }
     setError('');
     setSelectedFile(file);
+    if (!sessionTitle.trim()) {
+      const cleanBaseName = file.name.replace(/\.[^/.]+$/, '');
+      setSessionTitle(cleanBaseName);
+    }
     const objectUrl = URL.createObjectURL(file);
     const probe = document.createElement('video');
     probe.preload = 'metadata';
@@ -72,8 +64,8 @@ export const UploadModal: React.FC = () => {
     probe.src = objectUrl;
   };
 
-  const getWeekNumber = (weekTitle?: string) => {
-    const match = weekTitle?.match(/\d+/);
+  const getWeekNumber = (wTitle?: string) => {
+    const match = wTitle?.match(/\d+/);
     return match ? Number(match[0]) : 1;
   };
 
@@ -84,9 +76,9 @@ export const UploadModal: React.FC = () => {
       setError('먼저 프로젝트를 등록해 주세요.');
       return;
     }
-    const title = sessionTitle.trim() || selectedLesson?.title || '';
+    const title = sessionTitle.trim();
     if (!title) {
-      setError('영상을 연결할 차시를 선택하거나 차시명을 입력해 주세요.');
+      setError('차시명을 입력해 주세요 (예: 1차시 강의 개요).');
       return;
     }
     if (!selectedFile) {
@@ -95,8 +87,8 @@ export const UploadModal: React.FC = () => {
     }
 
     const videoId = newFirestoreId('videos');
-    const weekTitle = selectedLesson?.weekTitle || '주차 미지정';
-    const weekId = getWeekNumber(weekTitle);
+    const finalWeekTitle = weekTitle.trim() || '1주차';
+    const weekId = getWeekNumber(finalWeekTitle);
     setIsUploading(true);
     setUploadProgress(0);
     try {
@@ -111,12 +103,11 @@ export const UploadModal: React.FC = () => {
       const newVideo = addNewVideo({
         id: videoId,
         projectId: project.id,
-        lessonId: selectedLesson?.id,
         s3Key,
         mimeType: selectedFile.type || 'video/mp4',
         sizeBytes: selectedFile.size,
         weekId,
-        weekTitle,
+        weekTitle: finalWeekTitle,
         sessionTitle: title,
         fileName: selectedFile.name,
         videoUrl: '',
@@ -139,42 +130,112 @@ export const UploadModal: React.FC = () => {
       <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center"><Upload className="w-4 h-4" /></div>
-            <div><h3 className="text-base font-bold text-slate-900">강의 영상 등록</h3><p className="text-xs text-slate-500">원본 영상을 저장하고 검수 차시에 연결합니다.</p></div>
+            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+              <Upload className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">실제 강의 영상 등록</h3>
+              <p className="text-xs text-slate-500">실제 영상 파일을 브라우저/클라우드 저장소에 보관하고 검수 목록에 즉시 연결합니다.</p>
+            </div>
           </div>
-          <button type="button" disabled={isUploading} onClick={() => setUploadModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-200 disabled:opacity-40" aria-label="닫기"><X className="w-5 h-5" /></button>
+          <button
+            type="button"
+            disabled={isUploading}
+            onClick={() => setUploadModalOpen(false)}
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-200 disabled:opacity-40"
+            aria-label="닫기"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="text-xs font-bold text-slate-700">프로젝트
-              <select value={projectId} onChange={event => { setProjectId(event.target.value); setLessonId(''); }} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium">
-                <option value="">프로젝트 선택</option>
-                {projects.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            <label className="text-xs font-bold text-slate-700">
+              대상 프로젝트
+              <select
+                value={projectId}
+                onChange={event => setProjectId(event.target.value)}
+                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium"
+              >
+                {projects.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({item.alias})
+                  </option>
+                ))}
               </select>
             </label>
-            <label className="text-xs font-bold text-slate-700">등록된 차시
-              <select value={lessonId} onChange={event => {
-                setLessonId(event.target.value);
-                const lesson = lessons.find(item => item.id === event.target.value);
-                if (lesson) setSessionTitle(lesson.title);
-              }} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium">
-                <option value="">차시 선택 또는 아래에 입력</option>
-                {lessons.map(lesson => <option key={lesson.id} value={lesson.id}>{lesson.weekTitle ? lesson.weekTitle + ' · ' : ''}{lesson.title}</option>)}
-              </select>
+            <label className="text-xs font-bold text-slate-700">
+              주차 (Week)
+              <input
+                value={weekTitle}
+                onChange={event => setWeekTitle(event.target.value)}
+                placeholder="예: 1주차"
+                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              />
             </label>
           </div>
 
-          <label className="block text-xs font-bold text-slate-700">차시명
-            <input value={sessionTitle} onChange={event => setSessionTitle(event.target.value)} placeholder="예: 1차시 강의 소개" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+          <label className="block text-xs font-bold text-slate-700">
+            차시명 (Session Title)
+            <input
+              value={sessionTitle}
+              onChange={event => setSessionTitle(event.target.value)}
+              placeholder="예: 1차시 강의 오리엔테이션 및 학습 개요"
+              className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            />
           </label>
 
-          <button type="button" disabled={isUploading} onClick={() => fileInputRef.current?.click()} className="w-full p-6 border-2 border-dashed border-slate-300 hover:border-blue-400 rounded-xl bg-slate-50 text-center disabled:opacity-50 cursor-pointer">
-            <input ref={fileInputRef} type="file" accept="video/*,.mkv" onChange={event => processFile(event.target.files?.[0])} className="hidden" />
-            {selectedFile ? <><FileVideo className="w-8 h-8 mx-auto text-emerald-600 mb-2" /><strong className="block text-sm text-slate-800">{selectedFile.name}</strong><span className="text-xs text-slate-500">{(selectedFile.size / 1024 ** 2).toFixed(1)} MB{duration > 0 ? ' · ' + Math.floor(duration / 60) + '분 ' + duration % 60 + '초' : ''}</span></> : <><Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" /><strong className="block text-sm text-slate-700">영상 파일을 선택하세요</strong><span className="text-xs text-slate-500">MP4, WebM, MOV 등 실제 파일을 S3에 업로드합니다.</span></>}
+          <button
+            type="button"
+            disabled={isUploading}
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full p-6 border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl bg-slate-50 text-center disabled:opacity-50 cursor-pointer transition-colors"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*,.mkv"
+              onChange={event => processFile(event.target.files?.[0])}
+              className="hidden"
+            />
+            {selectedFile ? (
+              <>
+                <FileVideo className="w-8 h-8 mx-auto text-emerald-600 mb-2" />
+                <strong className="block text-sm text-slate-800">{selectedFile.name}</strong>
+                <span className="text-xs text-slate-500">
+                  {(selectedFile.size / 1024 ** 2).toFixed(1)} MB
+                  {duration > 0 ? ' · ' + Math.floor(duration / 60) + '분 ' + (duration % 60) + '초' : ''}
+                </span>
+              </>
+            ) : (
+              <>
+                <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                <strong className="block text-sm text-slate-700">실제 영상 파일을 선택하세요 (클릭 또는 파일 끌어놓기)</strong>
+                <span className="text-xs text-slate-500 mt-1 block">
+                  MP4, WebM, MOV 지원 · GitHub+Vercel 로컬 스토리지에 영구 보존되어 고화질로 즉시 재생됩니다.
+                </span>
+              </>
+            )}
           </button>
 
-          {isUploading && <div className="space-y-1.5"><div className="flex justify-between text-xs font-semibold text-blue-800"><span className="flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" />원본 업로드 중</span><span>{uploadProgress}%</span></div><div className="h-2 rounded-full bg-blue-100 overflow-hidden"><div className="h-full bg-blue-600 transition-all" style={{ width: uploadProgress + '%' }} /></div></div>}
+          {isUploading && (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-semibold text-blue-800">
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  동영상 저장소 등록 중...
+                </span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-blue-100 overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all"
+                  style={{ width: uploadProgress + '%' }}
+                />
+              </div>
+            </div>
+          )}
           {error && <div role="alert" className="p-3 rounded-lg border border-rose-200 bg-rose-50 text-xs text-rose-700 flex items-start gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
           {!error && !isUploading && selectedFile && <div className="text-xs text-emerald-700 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" />파일을 선택했습니다. 업로드 전에는 검수 목록에 등록되지 않습니다.</div>}
 

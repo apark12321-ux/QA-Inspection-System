@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import QRCode from 'qrcode';
 import { useApp } from '../context/AppContext';
 import { inspectVideoDuration, uploadVideoFile } from '../utils/s3Storage';
 import { newFirestoreId } from '../utils/firebaseStore';
@@ -6,120 +7,113 @@ import {
   Play,
   Upload,
   Check,
-  X
+  X,
+  Plus,
+  QrCode,
+  Download,
+  Copy,
+  Film,
+  Building2,
+  ExternalLink,
+  ShieldCheck,
+  FolderKanban,
+  FileCheck,
+  Clock,
+  Sparkles,
+  HelpCircle,
+  FileVideo,
+  Loader2,
+  Trash2
 } from 'lucide-react';
 
-interface ProjectRegistrationViewProps {
-  selectedProjectFilter?: string;
-  onSelectProjectFilter?: (filter: string) => void;
-}
-
-export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = () => {
+export const ProjectRegistrationView: React.FC = () => {
   const {
     projects,
     addProject,
     deleteProject,
-    addWeeksToProject,
-    addSessionsToProject,
     setSelectedVideo,
     openShareModal,
     deleteVideo,
     videos,
     addNewVideo,
     setCurrentProjectSlug,
-    setUserViewMode
+    setUserViewMode,
+    currentUser,
+    setCurrentUserName
   } = useApp();
 
-  // Step 1: 프로젝트 등록
+  // 1. 프로젝트 등록 상태
   const [newProjName, setNewProjName] = useState('');
   const [newProjAlias, setNewProjAlias] = useState('');
 
-  // Step 2: 주차명 등록
-  const [selectedProjForWeek, setSelectedProjForWeek] = useState<string>(projects[0]?.id || '');
-  const [weekInputLines, setWeekInputLines] = useState('');
-
-  // Step 3: 차시명 등록
-  const [selectedProjForSession, setSelectedProjForSession] = useState<string>(projects[0]?.id || '');
-  const [selectedWeekForSession, setSelectedWeekForSession] = useState<string>('all');
-  const [sessionInputLines, setSessionInputLines] = useState('');
-
-  // Step 4: 동영상 업로드
+  // 2. 실제 영상 원스톱 업로드 상태
   const [uploadProjId, setUploadProjId] = useState<string>(projects[0]?.id || '');
-  const [uploadWeekFilter, setUploadWeekFilter] = useState<string>('none');
-  const [uploadDefaultSession, setUploadDefaultSession] = useState<string>('');
+  const [uploadWeekTitle, setUploadWeekTitle] = useState('1주차');
+  const [uploadSessionTitle, setUploadSessionTitle] = useState('');
   const [dragActive, setDragActive] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileDuration, setFileDuration] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const totalProjects = projects.length;
-  const totalWeeks = projects.reduce((total, project) => total + (project.weekCount || project.weeks?.length || 0), 0);
-  const totalSessions = projects.reduce((total, project) => total + (project.sessionCount || project.sessions?.length || 0), 0);
-  const totalVideos = videos.length;
+  // 3. QR코드 모달 상태
+  const [qrModalProject, setQrModalProject] = useState<{ id: string; name: string; alias: string } | null>(null);
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // 4. 담당자 / 검수자 이름 설정 상태
+  const [editingUserName, setEditingUserName] = useState(false);
+  const [tempUserName, setTempUserName] = useState(currentUser.name || '검수자');
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (!uploadProjId && projects.length) setUploadProjId(projects[0].id);
+    if (!uploadProjId && projects.length) {
+      setUploadProjId(projects[0].id);
+    }
   }, [uploadProjId, projects]);
-
-  useEffect(() => {
-    if (!projects.length) return;
-    const firstProjectId = projects[0].id;
-    if (!projects.some(project => project.id === selectedProjForWeek)) setSelectedProjForWeek(firstProjectId);
-    if (!projects.some(project => project.id === selectedProjForSession)) setSelectedProjForSession(firstProjectId);
-  }, [projects, selectedProjForSession, selectedProjForWeek]);
-
-  useEffect(() => {
-    const project = projects.find(item => item.id === uploadProjId);
-    if (!project) return;
-    const firstSession = project.sessions?.[0] || project.weeks?.[0]?.sessions[0];
-    if (firstSession && !uploadDefaultSession) setUploadDefaultSession(firstSession.title);
-  }, [projects, uploadDefaultSession, uploadProjId]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 2500);
   };
 
-  const handleCopyLink = async (alias: string) => {
-    const fullUrl = new URL('/' + encodeURIComponent(alias), window.location.origin).toString();
-    try {
-      await navigator.clipboard.writeText(fullUrl);
-      showToast(`프로젝트 링크 복사됨: /${alias}`);
-    } catch {
-      showToast('브라우저에서 복사를 허용하지 않았습니다. 주소를 직접 복사해 주세요.');
-    }
-  };
-
-  const handleGoToProject = (alias: string) => {
-    setCurrentProjectSlug(alias);
-    setUserViewMode('review');
-  };
-
   const handleProjectSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjName.trim()) return;
-    addProject(newProjName, newProjAlias);
+    const cleanName = newProjName.trim();
+    if (!cleanName) {
+      showToast('기관/프로젝트명을 입력해 주세요.');
+      return;
+    }
+    const cleanAlias = newProjAlias.trim().replace(/^\//, '');
+    addProject(cleanName, cleanAlias);
     setNewProjName('');
     setNewProjAlias('');
-    showToast('새 프로젝트가 등록되었습니다.');
+    showToast(`새 프로젝트가 등록되었습니다: ${cleanName}`);
   };
 
-  const handleWeekSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProjForWeek || !weekInputLines.trim()) return;
-    const lines = weekInputLines.split('\n').filter(l => l.trim().length > 0);
-    addWeeksToProject(selectedProjForWeek, lines);
-    showToast(`${lines.length}개 주차가 등록되었습니다.`);
-  };
-
-  const handleSessionSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProjForSession || !sessionInputLines.trim()) return;
-    const lines = sessionInputLines.split('\n').filter(l => l.trim().length > 0);
-    addSessionsToProject(selectedProjForSession, selectedWeekForSession === 'all' ? null : selectedWeekForSession, lines);
-    showToast(`${lines.length}개 차시가 등록되었습니다.`);
+  const handleProcessFile = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('video/') && !/\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name)) {
+      setUploadError('MP4, WebM, MOV, M4V 또는 MKV 영상 파일을 선택해 주세요.');
+      return;
+    }
+    setUploadError(null);
+    setSelectedFile(file);
+    if (!uploadSessionTitle.trim()) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '');
+      setUploadSessionTitle(baseName);
+    }
+    const objectUrl = URL.createObjectURL(file);
+    const probe = document.createElement('video');
+    probe.preload = 'metadata';
+    probe.onloadedmetadata = () => {
+      setFileDuration(Number.isFinite(probe.duration) ? Math.round(probe.duration) : 0);
+      URL.revokeObjectURL(objectUrl);
+    };
+    probe.onerror = () => URL.revokeObjectURL(objectUrl);
+    probe.src = objectUrl;
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -127,619 +121,583 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name));
-      if (!files.length) {
-        setUploadError('지원하는 동영상 파일을 선택해 주세요.');
-        return;
-      }
-      setUploadError(null);
-      setUploadedFiles(prev => [...prev, ...files]);
+      handleProcessFile(e.dataTransfer.files[0]);
     }
   };
 
-  const handleUploadSubmit = async () => {
+  const handleVideoUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     const project = projects.find(item => item.id === uploadProjId);
     if (!project) {
       setUploadError('영상을 등록할 프로젝트를 먼저 선택해 주세요.');
       return;
     }
-    const lesson = [...(project.sessions || []), ...(project.weeks || []).flatMap(week => week.sessions)]
-      .find(session => session.title === uploadDefaultSession.trim());
-    const weekTitle = lesson?.weekTitle || project.weeks?.find(week => week.id === uploadWeekFilter)?.title || '주차 미지정';
-    const weekId = Number(weekTitle.match(/\d+/)?.[0]) || 1;
-
-    if (uploadedFiles.length === 0) {
-      setUploadError('업로드할 동영상 파일을 선택해 주세요.');
+    if (!selectedFile) {
+      setUploadError('업로드할 실제 영상 파일을 선택해 주세요.');
       return;
     }
+    const sessionName = uploadSessionTitle.trim() || selectedFile.name;
+    const weekTitle = uploadWeekTitle.trim() || '1주차';
+    const weekNum = Number(weekTitle.match(/\d+/)?.[0]) || 1;
 
     setIsUploading(true);
     setUploadProgress(0);
     setUploadError(null);
-    let registered = 0;
-    const failures: string[] = [];
-    const failedFiles: File[] = [];
-    for (let index = 0; index < uploadedFiles.length; index += 1) {
-      const file = uploadedFiles[index];
+
+    try {
       const videoId = newFirestoreId('videos');
-      try {
-        const s3Key = await uploadVideoFile({
-          projectName: project.name,
-          lessonName: uploadDefaultSession.trim() || lesson?.title || file.name,
-          fileName: file.name,
-          videoId,
-          file,
-          onProgress: value => setUploadProgress(Math.round(((index + value / 100) / uploadedFiles.length) * 100))
-        });
-        const duration = await inspectVideoDuration(file);
-        const title = uploadDefaultSession.trim() || lesson?.title || file.name;
-        addNewVideo({
-          id: videoId,
-          projectId: project.id,
-          lessonId: lesson?.id,
-          s3Key,
-          mimeType: file.type || 'video/mp4',
-          sizeBytes: file.size,
-          weekId,
-          weekTitle,
-          sessionTitle: title,
-          fileName: file.name,
-          videoUrl: '',
-          duration,
-          fileSize: file.size >= 1024 ** 3 ? (file.size / 1024 ** 3).toFixed(1) + ' GB' : Math.max(1, Math.round(file.size / 1024 ** 2)) + ' MB'
-        });
-        registered += 1;
-      } catch (error) {
-        failedFiles.push(file);
-        failures.push(file.name + ': ' + (error instanceof Error ? error.message : '업로드 실패'));
-      }
+      const s3Key = await uploadVideoFile({
+        projectName: project.name,
+        lessonName: sessionName,
+        fileName: selectedFile.name,
+        videoId,
+        file: selectedFile,
+        onProgress: setUploadProgress
+      });
+
+      const dur = fileDuration > 0 ? fileDuration : await inspectVideoDuration(selectedFile);
+
+      addNewVideo({
+        id: videoId,
+        projectId: project.id,
+        s3Key,
+        mimeType: selectedFile.type || 'video/mp4',
+        sizeBytes: selectedFile.size,
+        weekId: weekNum,
+        weekTitle,
+        sessionTitle: sessionName,
+        fileName: selectedFile.name,
+        videoUrl: '',
+        duration: dur,
+        fileSize:
+          selectedFile.size >= 1024 ** 3
+            ? (selectedFile.size / 1024 ** 3).toFixed(1) + ' GB'
+            : Math.max(1, Math.round(selectedFile.size / 1024 ** 2)) + ' MB'
+      });
+
+      setSelectedFile(null);
+      setUploadSessionTitle('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      showToast(`'${selectedFile.name}' 영상이 성공적으로 등록되었습니다.`);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : '영상 업로드에 실패했습니다.');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
     }
-    setIsUploading(false);
-    setUploadedFiles(failedFiles);
-    setUploadProgress(0);
-    if (failures.length) setUploadError(`${registered}개 등록, ${failures.length}개 실패 · ${failures.slice(0, 2).join(' / ')}`);
-    if (registered) showToast(`${registered}개 영상 원본을 저장하고 검수 목록에 등록했습니다.`);
+  };
+
+  const getProposalUrl = (alias: string) => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/?p=${encodeURIComponent(alias)}`;
+  };
+
+  const handleCopyLink = async (alias: string) => {
+    const url = getProposalUrl(alias);
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast(`제안서 전용 링크 복사 완료: /?p=${alias}`);
+    } catch {
+      showToast('클립보드 복사 실패');
+    }
+  };
+
+  // QR 모달 렌더링
+  useEffect(() => {
+    if (!qrModalProject || !qrCanvasRef.current) return;
+    const url = getProposalUrl(qrModalProject.alias);
+    QRCode.toCanvas(qrCanvasRef.current, url, {
+      width: 220,
+      margin: 1,
+      color: { dark: '#0f172a', light: '#ffffff' }
+    });
+  }, [qrModalProject]);
+
+  const handleDownloadQrPng = () => {
+    if (!qrCanvasRef.current || !qrModalProject) return;
+    try {
+      const dataUrl = qrCanvasRef.current.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      const cleanAlias = (qrModalProject.alias || qrModalProject.name).replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+      a.download = `${cleanAlias}_제안서_서류평가_QR.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('QR코드 고해상도 PNG 이미지가 다운로드되었습니다.');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleGoToReview = (alias: string) => {
+    setCurrentProjectSlug(alias);
+    setUserViewMode('review');
+  };
+
+  const handleSaveUserName = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempUserName.trim()) return;
+    setCurrentUserName(tempUserName.trim());
+    setEditingUserName(false);
+    showToast(`작업자(담당자) 이름이 '${tempUserName.trim()}'(으)로 설정되었습니다.`);
+  };
+
+  const totalRegisteredVideos = videos.length;
+  const totalStorageBytes = useMemo(() => videos.reduce((acc, v) => acc + (v.sizeBytes || 0), 0), [videos]);
+  const formatBytes = (bytes: number) => {
+    if (!bytes) return '0 MB';
+    if (bytes >= 1024 ** 3) return (bytes / 1024 ** 3).toFixed(1) + ' GB';
+    return (bytes / 1024 ** 2).toFixed(1) + ' MB';
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto font-sans pb-16">
       
-      {/* Toast message banner */}
+      {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed top-16 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
           <Check className="w-4 h-4 text-emerald-400" />
           <span>{toastMsg}</span>
         </div>
       )}
 
-      {/* ================= 2-COLUMN WORKSPACE (MATCHING SCREENSHOT 2) ================= */}
+      {/* ================= 1. SYSTEM ARCHITECTURE & HOW TO MANAGE GUIDE ================= */}
+      <section className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 mb-2">
+              <FolderKanban className="w-3.5 h-3.5 text-blue-600" />
+              <span>동영상 품질 검수 플랫폼 운영 체계</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              어떻게 관리하는가? (표준 운영 프로세스)
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              허구의 목데이터나 빈 껍데기 차시를 없애고, <strong>실제 영상 파일과 대학별 제출 링크</strong>를 직관적으로 원스톱 관리합니다.
+            </p>
+          </div>
+
+          {/* Current Operator Badge */}
+          <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl flex items-center gap-3 shrink-0">
+            <div className="text-xs">
+              <span className="text-slate-400 block text-[11px]">현재 작업자 / 담당자</span>
+              <strong className="text-slate-900 font-bold">{currentUser.name || '검수자'}</strong>
+            </div>
+            {editingUserName ? (
+              <form onSubmit={handleSaveUserName} className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={tempUserName}
+                  onChange={e => setTempUserName(e.target.value)}
+                  className="px-2 py-1 text-xs border border-slate-300 rounded bg-white w-28 font-medium"
+                  placeholder="담당자명 입력"
+                  autoFocus
+                />
+                <button type="submit" className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold">저장</button>
+                <button type="button" onClick={() => setEditingUserName(false)} className="px-1.5 py-1 text-slate-500 text-xs">취소</button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setTempUserName(currentUser.name || ''); setEditingUserName(true); }}
+                className="text-[11px] text-blue-600 hover:underline font-semibold"
+              >
+                변경
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 4-Step Visual Workflow Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-5">
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-black flex items-center justify-center">1</span>
+              <strong className="text-xs font-bold text-slate-900">사업(대학) 등록</strong>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              발주 대학 및 사업명과 전용 슬러그(예: <span className="font-mono text-blue-600 font-bold">khcu</span>)를 등록합니다.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-black flex items-center justify-center">2</span>
+              <strong className="text-xs font-bold text-slate-900">실제 영상 파일 업로드</strong>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              MP4/WebM 파일을 올리면서 차시명을 입력하여 저장소(S3/로컬)에 영구 보존합니다.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-black flex items-center justify-center">3</span>
+              <strong className="text-xs font-bold text-slate-900">제안서 QR·링크 발급</strong>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              서류평가 제안서 삽입용 인쇄 QR PNG 이미지와 전용 검수 URL을 1-클릭 발급합니다.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] font-black flex items-center justify-center">4</span>
+              <strong className="text-xs font-bold text-slate-900">실시간 품질 검수</strong>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              1080p 플레이어에서 타임코드 의견을 남기고 [승인]/[반려] 판정을 내립니다.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= 2. WORKSPACE: 2-COLUMN REGISTRATION & ASSET VIEW ================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* ================= LEFT COLUMN: 4 NUMBERED REGISTRATION CARDS (45%) ================= */}
-        <div className="lg:col-span-5 space-y-4">
+        {/* ================= LEFT COLUMN: REGISTRATION FORMS (5 Cols) ================= */}
+        <div className="lg:col-span-5 space-y-5">
           
-          {/* Card 1: 프로젝트 등록 */}
-          <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5">
+          {/* Card A: 1단계 사업(대학) 등록 */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5">
             <div className="flex items-center gap-2 mb-1">
-              <span className="w-5 h-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                1
-              </span>
-              <h2 className="text-sm font-bold text-slate-900">프로젝트 등록</h2>
-              <span className="text-xs text-slate-400 font-normal">
-                검수를 요청할 프로젝트(과정)를 먼저 등록합니다.
-              </span>
+              <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">1</span>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">사업(대학) 등록</h2>
+                <p className="text-[11px] text-slate-400">발주 기관명과 전용 접속 슬러그를 등록합니다.</p>
+              </div>
             </div>
 
             <form onSubmit={handleProjectSubmit} className="mt-4 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                <div className="sm:col-span-7 space-y-1">
-                  <label className="block text-[11px] font-bold text-slate-700">프로젝트명</label>
-                  <input
-                    type="text"
-                    value={newProjName}
-                    onChange={e => setNewProjName(e.target.value)}
-                    placeholder="예) 2026 스마트팜 전문가 양성과정"
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition-colors"
-                  />
-                </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">프로젝트(대학/사업명)</label>
+                <input
+                  type="text"
+                  value={newProjName}
+                  onChange={e => setNewProjName(e.target.value)}
+                  placeholder="예: 경희사이버대학교 2026 원격 교육과정 개발 사업"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 hover:bg-white"
+                />
+              </div>
 
-                <div className="sm:col-span-5 space-y-1">
-                  <label className="block text-[11px] font-bold text-slate-700">링크 별칭 (선택)</label>
-                  <div className="flex gap-2">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">전용 링크 별칭 (Slug)</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">/?p=</span>
                     <input
                       type="text"
                       value={newProjAlias}
                       onChange={e => setNewProjAlias(e.target.value)}
-                      placeholder="예) my"
-                      className="w-full px-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition-colors"
+                      placeholder="khcu"
+                      className="w-full pl-12 pr-3 py-2 text-xs font-mono font-bold text-blue-600 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 hover:bg-white"
                     />
-                    <button
-                      type="submit"
-                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs whitespace-nowrap cursor-pointer transition-colors"
-                    >
-                      프로젝트 등록
-                    </button>
                   </div>
-                </div>
-              </div>
-
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                링크 별칭을 등록하면 도메인 뒤에 붙여서 해당 프로젝트가 바로 선택된 검수 화면으로 연결할 수 있습니다. (예: https://도메인.com/my)
-              </p>
-
-              {/* Registered project quick chips matching Screenshot 2 */}
-              <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
-                {projects.map(proj => (
-                  <div
-                    key={proj.id}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200/80 text-slate-800 rounded-lg text-xs font-medium border border-slate-200 transition-colors"
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs whitespace-nowrap cursor-pointer transition-colors"
                   >
-                    <button
-                      type="button"
-                      onClick={() => handleGoToProject(proj.alias)}
-                      className="hover:underline truncate max-w-[190px] text-left"
-                      title={proj.name}
-                    >
-                      {proj.name}
-                    </button>
-                    <span className="text-[10px] font-mono font-bold text-blue-600 bg-white border border-blue-200 px-1 py-0.2 rounded">
-                      /{proj.alias}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm(`'${proj.name}' 프로젝트와 연결된 영상 및 검수 기록을 삭제할까요?`)) deleteProject(proj.id);
-                      }}
-                      className="text-slate-400 hover:text-rose-600 ml-0.5 p-0.5 rounded transition-colors"
-                      title="프로젝트 삭제"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
+                    프로젝트 등록
+                  </button>
+                </div>
               </div>
             </form>
           </div>
 
-          {/* Card 2: 주차명 등록 (선택) */}
-          <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5">
+          {/* Card B: 2단계 실제 동영상 원스톱 업로드 */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5">
             <div className="flex items-center gap-2 mb-1">
-              <span className="w-5 h-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                2
-              </span>
-              <h2 className="text-sm font-bold text-slate-900">주차명 등록 (선택)</h2>
-              <span className="text-xs text-slate-400 font-normal">
-                차시를 주차 단위로 묶어서 관리하고 싶을 때만 등록하세요.
-              </span>
+              <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">2</span>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">실제 강의 영상 원스톱 업로드</h2>
+                <p className="text-[11px] text-slate-400">영상 파일(MP4 등)을 올리면서 차시와 즉각 연결합니다.</p>
+              </div>
             </div>
 
-            <form onSubmit={handleWeekSubmit} className="mt-4 space-y-3">
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-700">프로젝트 선택</label>
-                <select
-                  value={selectedProjForWeek}
-                  onChange={e => setSelectedProjForWeek(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                >
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-700">
-                  주차명 (여러 줄 입력 가능)
-                </label>
-                <textarea
-                  rows={3}
-                  value={weekInputLines}
-                  onChange={e => setWeekInputLines(e.target.value)}
-                  placeholder="1주차&#10;2주차&#10;3주차"
-                  className="w-full px-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-slate-400">이미 등록된 주차명은 건너뜁니다.</span>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs cursor-pointer transition-colors"
-                >
-                  주차 일괄 등록
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Card 3: 차시명 등록 */}
-          <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-5 h-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                3
-              </span>
-              <h2 className="text-sm font-bold text-slate-900">차시명 등록</h2>
-              <span className="text-xs text-slate-400 font-normal">
-                한 줄에 하나씩 입력하면 여러 차시를 한 번에 등록합니다.
-              </span>
-            </div>
-
-            <form onSubmit={handleSessionSubmit} className="mt-4 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-slate-700">프로젝트 선택</label>
-                  <select
-                    value={selectedProjForSession}
-                    onChange={e => { setSelectedProjForSession(e.target.value); setSelectedWeekForSession('all'); }}
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                  >
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-slate-700">주차 선택</label>
-                  <select
-                    value={selectedWeekForSession}
-                    onChange={e => setSelectedWeekForSession(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                  >
-                    <option value="all">전체 주차 (또는 주차 미지정)</option>
-                    {(projects.find(project => project.id === selectedProjForSession)?.weeks || []).map(week => (
-                      <option key={week.id} value={week.id}>{week.title}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-700">
-                  차시명 (여러 줄 입력 가능)
-                </label>
-                <textarea
-                  rows={3}
-                  value={sessionInputLines}
-                  onChange={e => setSessionInputLines(e.target.value)}
-                  placeholder="1차시 스마트팜 개요&#10;2차시 센서와 제어&#10;3차시 데이터 분석 기초"
-                  className="w-full px-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-slate-400">
-                  같은 주차에 이미 등록된 차시명은 건너뜁니다.
-                </span>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs cursor-pointer transition-colors"
-                >
-                  차시 일괄 등록
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Card 4: 동영상 업로드 (여러 개 동시) */}
-          <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-5 h-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                4
-              </span>
-              <h2 className="text-sm font-bold text-slate-900">동영상 업로드 (여러 개 동시)</h2>
-            </div>
-            <p className="text-xs text-slate-500 font-normal">
-              파일을 끌어다 놓거나 선택하세요. 원본 영상 파일(MP4, WebM, MOV 등)을 저장하고 검수 차시에 연결합니다.
-            </p>
-
-            <div className="mt-4 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-slate-700">프로젝트</label>
+            <form onSubmit={handleVideoUploadSubmit} className="mt-4 space-y-3.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">소속 프로젝트</label>
                   <select
                     value={uploadProjId}
                     onChange={e => setUploadProjId(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-slate-800 bg-slate-50"
                   >
                     {projects.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
+                      <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                 </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-slate-700">주차 (필터)</label>
-                  <select
-                    value={uploadWeekFilter}
-                    onChange={e => setUploadWeekFilter(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="none">주차 미지정</option>
-                    {(projects.find(project => project.id === uploadProjId)?.weeks || []).map(week => (
-                      <option key={week.id} value={week.id}>{week.title}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-slate-700">기본 차시</label>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">주차</label>
                   <input
                     type="text"
-                    value={uploadDefaultSession}
-                    onChange={e => setUploadDefaultSession(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    value={uploadWeekTitle}
+                    onChange={e => setUploadWeekTitle(e.target.value)}
+                    placeholder="예: 1주차"
+                    className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-slate-800 bg-slate-50"
                   />
                 </div>
               </div>
 
-              {/* Dropzone for actual video files */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">강의 차시명 (파일명과 다를 경우 입력)</label>
+                <input
+                  type="text"
+                  value={uploadSessionTitle}
+                  onChange={e => setUploadSessionTitle(e.target.value)}
+                  placeholder="예: 1차시 시니어재무컨설팅 (1인강의형)"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-800 bg-slate-50 focus:bg-white"
+                />
+              </div>
+
+              {/* Drag and drop zone */}
               <div
-                onDragOver={e => {
-                  e.preventDefault();
-                  setDragActive(true);
-                }}
+                onDragOver={e => { e.preventDefault(); setDragActive(true); }}
                 onDragLeave={() => setDragActive(false)}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors ${
-                  dragActive
-                    ? 'border-blue-500 bg-blue-50/40'
-                    : 'border-slate-300 hover:border-slate-400 bg-slate-50/50'
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors cursor-pointer ${
+                  dragActive ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300 hover:border-slate-400 bg-slate-50/60'
                 }`}
               >
-                <Upload className="w-6 h-6 mx-auto text-slate-400 mb-1" />
-                <p className="text-xs font-bold text-slate-700">
-                  동영상 파일을 이 영역에 끌어다 놓기
-                </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  또는 클릭해서 선택 (여러 개 동시 선택 가능 mp4, webm, mov, m4v, mkv...)
-                </p>
-
                 <input
+                  ref={fileInputRef}
                   type="file"
-                  multiple
                   accept="video/*,.mkv"
-                  onChange={e => {
-                    if (e.target.files) {
-                      const newItems = Array.from(e.target.files).filter(file => file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name));
-                      setUploadedFiles(prev => [...prev, ...newItems]);
-                      setUploadError(newItems.length ? null : '지원하는 동영상 파일을 선택해 주세요.');
-                      e.target.value = '';
-                    }
-                  }}
+                  onChange={e => handleProcessFile(e.target.files?.[0])}
                   className="hidden"
-                  id="fileRegInput"
                 />
-                <label
-                  htmlFor="fileRegInput"
-                  className="inline-block mt-2 px-3 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-2xs"
-                >
-                  파일 찾아보기
-                </label>
+                {selectedFile ? (
+                  <div className="space-y-1">
+                    <FileVideo className="w-8 h-8 mx-auto text-emerald-600" />
+                    <strong className="block text-xs text-slate-900 truncate max-w-xs mx-auto">{selectedFile.name}</strong>
+                    <span className="text-[11px] text-slate-500">
+                      {(selectedFile.size / 1024 ** 2).toFixed(1)} MB {fileDuration > 0 ? `· ${Math.floor(fileDuration / 60)}분 ${fileDuration % 60}초` : ''}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <Upload className="w-7 h-7 mx-auto text-slate-400" />
+                    <p className="text-xs font-bold text-slate-700">실제 영상 파일 끌어다 놓기</p>
+                    <p className="text-[11px] text-slate-400">클릭하여 파일 선택 (MP4, WebM, MOV, MKV)</p>
+                  </div>
+                )}
               </div>
 
-              {/* Action Buttons: [목록 비우기] [동영상 등록] */}
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUploadedFiles([]);
-                    setUploadError(null);
-                  }}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold transition-colors"
-                >
-                  목록 비우기
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isUploading}
-                  onClick={handleUploadSubmit}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:bg-slate-300"
-                >
-                  {isUploading ? '업로드 중...' : '동영상 등록'}
-                </button>
-              </div>
-
-              {uploadedFiles.length > 0 && (
-                <div className="text-xs text-slate-600 font-medium">
-                  선택된 파일: <strong className="text-slate-900">{uploadedFiles.length}개</strong>
-                  <div className="mt-1 max-h-20 overflow-y-auto text-[11px] text-slate-500">{uploadedFiles.map((file, index) => <div key={file.name + index}>{file.name} · {(file.size / 1024 ** 2).toFixed(1)} MB</div>)}</div>
+              {uploadProgress > 0 && isUploading && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold text-blue-800">
+                    <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> 업로드 저장 중...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-blue-100 overflow-hidden">
+                    <div className="h-full bg-blue-600 transition-all duration-150" style={{ width: `${uploadProgress}%` }} />
+                  </div>
                 </div>
               )}
-              {isUploading && <div className="space-y-1.5"><div className="flex justify-between text-xs font-semibold text-blue-800"><span>실제 원본 업로드 중</span><span>{uploadProgress}%</span></div><div className="h-2 rounded-full bg-blue-100 overflow-hidden"><div className="h-full bg-blue-600 transition-all" style={{ width: uploadProgress + '%' }} /></div></div>}
-              {uploadError && <p role="alert" className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2.5">{uploadError}</p>}
-            </div>
+
+              {uploadError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                  {uploadError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-slate-400">S3 및 브라우저 영구 스토리지에 저장</span>
+                <button
+                  type="submit"
+                  disabled={isUploading || !selectedFile}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{isUploading ? '업로드 중...' : '영상 업로드 & 차시 등록'}</span>
+                </button>
+              </div>
+            </form>
           </div>
 
         </div>
 
-
-        {/* ================= RIGHT COLUMN: REGISTERED HIERARCHY (55% MATCHING SCREENSHOT 2) ================= */}
-        <div className="lg:col-span-7 space-y-4">
+        {/* ================= RIGHT COLUMN: REGISTERED ASSETS & QR MANAGER (7 Cols) ================= */}
+        <div className="lg:col-span-7 space-y-5">
           
-          {/* Top Summary Card: 프로젝트 17 | 주차 14 | 차시 85 | 동영상 83 */}
-          <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-slate-900">
-                등록 현황 <span className="text-xs font-normal text-slate-400">검수자 페이지에 그대로 표시됩니다.</span>
-              </h2>
+          {/* Top Summary Banner */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">등록된 영상 및 제안서 현황</h2>
+              <p className="text-xs text-slate-500 mt-0.5">실제 업로드된 영상 파일만 집계되며, 가짜 리스트는 노출되지 않습니다.</p>
             </div>
-
-            <div className="grid grid-cols-4 gap-3 py-3 border-y border-slate-100">
-              <div className="text-center">
-                <div className="text-xs text-slate-500 font-medium">프로젝트</div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-0.5">
-                  {totalProjects}
-                </div>
+            <div className="flex items-center gap-4 text-right">
+              <div>
+                <span className="text-[11px] text-slate-400 block font-medium">총 등록 프로젝트</span>
+                <strong className="text-base sm:text-lg font-black text-slate-900">{projects.length}개</strong>
               </div>
-              <div className="text-center border-l border-slate-100">
-                <div className="text-xs text-slate-500 font-medium">주차</div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-0.5">
-                  {totalWeeks}
-                </div>
+              <div className="border-l border-slate-200 pl-4">
+                <span className="text-[11px] text-slate-400 block font-medium">실제 업로드 영상</span>
+                <strong className="text-base sm:text-lg font-black text-blue-600">{totalRegisteredVideos}편</strong>
               </div>
-              <div className="text-center border-l border-slate-100">
-                <div className="text-xs text-slate-500 font-medium">차시</div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-0.5">
-                  {totalSessions}
-                </div>
+              <div className="border-l border-slate-200 pl-4">
+                <span className="text-[11px] text-slate-400 block font-medium">총 스토리지 용량</span>
+                <strong className="text-base sm:text-lg font-black text-slate-900">{formatBytes(totalStorageBytes)}</strong>
               </div>
-              <div className="text-center border-l border-slate-100">
-                <div className="text-xs text-slate-500 font-medium">동영상</div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-0.5">
-                  {totalVideos}
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-3 text-[11px] text-slate-400">
-              동영상 원본은 고성능 스토리지(S3 및 브라우저 IndexedDB)에 안전하게 저장됩니다.
             </div>
           </div>
 
-          {/* Project Hierarchy Cards List matching Screenshot 2 */}
+          {/* Project Cards List */}
           <div className="space-y-4">
             {projects.map(proj => {
-              // Get videos belonging to this project
               const projVideos = videos.filter(v => v.projectId === proj.id);
-              const projectSessions = proj.sessions || [];
+              const proposalUrl = getProposalUrl(proj.alias);
 
               return (
-                <div
-                  key={proj.id}
-                  className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden"
-                >
-                  {/* Project Header */}
-                  <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                        {proj.name}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-medium">
-                        <span>차시 {proj.sessionCount ?? projectSessions.length}</span>
+                <div key={proj.id} className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                  
+                  {/* Project Card Header */}
+                  <div className="p-4 sm:p-5 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">{proj.name}</h3>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium pl-4.5">
+                        <span>전용 링크: <strong className="font-mono text-blue-600">/?p={proj.alias}</strong></span>
                         <span>·</span>
-                        <span>동영상 {projVideos.length}</span>
-                        <span>·</span>
-                        <span className="font-mono text-blue-600 font-bold">/{proj.alias}</span>
+                        <span>실제 영상: <strong className="text-slate-900">{projVideos.length}개</strong></span>
                       </div>
                     </div>
 
-                    {/* Action buttons: [링크] [수정] [링크 수정] [프로젝트 삭제] */}
+                    {/* Actions: Copy Link, QR Code, Delete */}
                     <div className="flex items-center gap-1.5 flex-wrap shrink-0">
                       <button
                         type="button"
                         onClick={() => handleCopyLink(proj.alias)}
-                        className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-[11px] font-semibold text-slate-700 transition-colors shadow-2xs"
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                        title="제안서 기재용 전용 링크 복사"
                       >
-                        📋 링크
+                        <Copy className="w-3.5 h-3.5 text-blue-600" />
+                        <span>링크 복사</span>
                       </button>
+
                       <button
                         type="button"
-                        onClick={() => handleGoToProject(proj.alias)}
-                        className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-[11px] font-semibold text-slate-700 transition-colors shadow-2xs"
+                        onClick={() => setQrModalProject(proj)}
+                        className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                        title="제안서 삽입용 QR코드 확인 및 다운로드"
                       >
-                        검수 열기
+                        <QrCode className="w-3.5 h-3.5 text-emerald-300" />
+                        <span>QR 발급</span>
                       </button>
+
                       <button
                         type="button"
-                        onClick={() => {
-                          if (window.confirm(`'${proj.name}' 프로젝트와 연결된 영상 및 검수 기록을 삭제할까요?`)) deleteProject(proj.id);
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-rose-600 rounded text-[11px] font-semibold transition-colors shadow-2xs"
+                        onClick={() => handleGoToReview(proj.alias)}
+                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                        title="이 프로젝트 검수 화면으로 이동"
                       >
-                        🗑 프로젝트 삭제
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>검수 열기</span>
                       </button>
+
+                      {projects.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`'${proj.name}' 프로젝트와 연결된 영상을 모두 삭제할까요?`)) {
+                              deleteProject(proj.id);
+                            }
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="프로젝트 삭제"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Sessions & Videos List under Project */}
-                  <div className="p-4 space-y-3">
-                    {/* Render only registered lessons and videos. */}
-                    {projectSessions.length ? projectSessions.map((session, sIdx) => (
-                      <div
-                        key={session.id || sIdx}
-                        className="border border-slate-100 rounded-lg p-3 bg-slate-50/40 space-y-2"
-                      >
-                        {/* Session Title Header */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-900">{session.title}</span>
-                            <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.2 rounded">
-                              {sIdx + 1}편
-                            </span>
-                          </div>
+                  {/* Registered Real Videos Under this Project */}
+                  <div className="p-4 sm:p-5">
+                    {projVideos.length === 0 ? (
+                      <div className="py-8 px-4 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/40">
+                        <Film className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                        <p className="text-xs font-bold text-slate-700">등록된 실제 강의 영상이 없습니다.</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          왼쪽의 <strong>'2단계 실제 강의 영상 원스톱 업로드'</strong>를 통해 첫 강의 영상을 등록해 주세요.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          업로드된 실제 강의 영상 목록 ({projVideos.length}개):
                         </div>
-
-                        {/* Videos in this Session */}
-                        <div className="space-y-1.5 pt-1">
-                          {(session.videos && session.videos.length > 0 ? session.videos : projVideos.filter(video => video.lessonId === session.id || (!video.lessonId && video.sessionTitle === session.title))).map(vid => (
-                            <div
-                              key={vid.id}
-                              className="bg-white border border-slate-200/90 rounded-lg p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
-                            >
-                              <div>
+                        {projVideos.map((vid, idx) => (
+                          <div
+                            key={vid.id}
+                            className="p-3 bg-white border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-slate-300 transition-colors shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-6 h-6 rounded-md bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-mono font-bold shrink-0">
+                                {idx + 1}
+                              </span>
+                              <div className="truncate">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-mono text-xs font-bold text-slate-800">
-                                    {vid.fileName}
-                                  </span>
-                                  <span
-                                    className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${
-                                      vid.status === 'APPROVED'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                        : vid.status === 'REJECTED'
-                                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                        : 'bg-amber-50 text-amber-700 border-amber-200'
-                                    }`}
-                                  >
-                                    {vid.status === 'APPROVED' ? '승인' : vid.status === 'REJECTED' ? '반려' : '검수대기'}
+                                  <strong className="text-xs text-slate-900 truncate font-semibold">
+                                    {vid.sessionTitle}
+                                  </strong>
+                                  <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                                    vid.status === 'APPROVED'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : vid.status === 'REJECTED'
+                                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                                  }`}>
+                                    {vid.status === 'APPROVED' ? '승인' : vid.status === 'REJECTED' ? '반려' : '대기'}
                                   </span>
                                 </div>
-                                <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                                  {vid.fileSize} · {vid.uploadedAt}
+                                <div className="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-2">
+                                  <span>{vid.fileName}</span>
+                                  <span>·</span>
+                                  <span>{vid.fileSize}</span>
+                                  <span>·</span>
+                                  <span>{vid.weekTitle}</span>
+                                  <span>·</span>
+                                  <span>{vid.uploadedAt}</span>
                                 </div>
-                              </div>
-
-                              {/* Video Actions */}
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedVideo(vid)}
-                                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
-                                >
-                                  <Play className="w-3 h-3 fill-current" />
-                                  <span>재생</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => openShareModal(vid)}
-                                  className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded text-[11px] font-medium"
-                                >
-                                  🔗 공유
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (window.confirm(`'${vid.fileName}' 영상과 검수 기록을 삭제할까요?`)) deleteVideo(vid.id);
-                                  }}
-                                  className="px-2 py-1 bg-white hover:bg-rose-50 border border-slate-200 text-rose-600 rounded text-[11px] font-medium"
-                                >
-                                  🗑 삭제
-                                </button>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )) : (
-                      <div className="py-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
-                        등록된 차시가 없습니다. 왼쪽에서 주차와 차시를 먼저 추가해 주세요.
+
+                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedVideo(vid)}
+                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                              >
+                                <Play className="w-3 h-3 fill-current" />
+                                <span>재생</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openShareModal(vid)}
+                                className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium cursor-pointer"
+                              >
+                                공유
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm(`'${vid.fileName}' 영상을 삭제할까요?`)) {
+                                    deleteVideo(vid.id);
+                                  }
+                                }}
+                                className="px-2 py-1 bg-white hover:bg-rose-50 border border-slate-200 text-rose-600 rounded-lg text-xs font-medium cursor-pointer"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -751,6 +709,56 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
         </div>
 
       </div>
+
+      {/* ================= 3. QR CODE MODAL ================= */}
+      {qrModalProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <strong className="text-sm font-bold text-slate-900">제안서 서류평가 QR코드</strong>
+              <button
+                type="button"
+                onClick={() => setQrModalProject(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-bold text-slate-900">{qrModalProject.name}</h4>
+              <p className="text-xs text-slate-500 mt-0.5">인쇄물(한글/워드/PPT)에 삽입 가능한 고해상도 QR</p>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-xl inline-block border border-slate-200 shadow-inner">
+              <canvas ref={qrCanvasRef} className="mx-auto" />
+            </div>
+
+            <div className="p-2.5 bg-slate-900 text-white rounded-xl text-xs font-mono truncate select-all">
+              {getProposalUrl(qrModalProject.alias)}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => handleCopyLink(qrModalProject.alias)}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              >
+                링크 복사
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadQrPng}
+                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>PNG 다운로드</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
