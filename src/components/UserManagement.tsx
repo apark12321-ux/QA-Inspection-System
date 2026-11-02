@@ -120,11 +120,16 @@ export const UserManagement: React.FC = () => {
         </div>
 
         <div className="divide-y divide-slate-100">
-          {users.map(u => (
-            <div
-              key={u.id}
-              className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors"
-            >
+          {users.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-400">
+              등록된 사내 사용자 계정이 없습니다. (새 계정이 추가되면 여기에 표시됩니다)
+            </div>
+          ) : (
+            users.map(u => (
+              <div
+                key={u.id}
+                className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors"
+              >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700">
                   {u.name.slice(0, 1)}
@@ -161,7 +166,7 @@ export const UserManagement: React.FC = () => {
                 </button>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </div>
 

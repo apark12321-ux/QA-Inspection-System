@@ -47,14 +47,8 @@ export const ProposalSampleView: React.FC = () => {
   const proposalProjects: ProposalProjectItem[] = useMemo(() => {
     return projects.map(p => {
       const pVideos = videos.filter(v => v.projectId === p.id);
-      const sampleTitles = pVideos.length
-        ? pVideos.map(v => v.sessionTitle || v.fileName)
-        : (p.sessions?.length
-            ? p.sessions.map(s => s.title)
-            : ['원격 정규 교육과정 콘텐츠 샘플 영상']);
-      const category = p.sessions?.[0]?.title?.includes('1인강의')
-        ? '1인강의형 전면 연출'
-        : '원격 교육과정 고품질 영상';
+      const sampleTitles = pVideos.map(v => v.sessionTitle || v.fileName);
+      const category = '원격 교육과정 고품질 영상';
 
       return {
         id: p.id,
@@ -219,16 +213,23 @@ export const ProposalSampleView: React.FC = () => {
                 {/* Sample Videos List */}
                 <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
                   <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    심사위원에게 노출되는 샘플 영상:
+                    심사위원에게 노출되는 실제 영상:
                   </div>
-                  <ul className="space-y-1 text-xs text-slate-700">
-                    {item.sampleVideoTitles.map((title, idx) => (
-                      <li key={idx} className="flex items-start gap-1.5 truncate">
-                        <span className="text-blue-500 font-black">◆</span>
-                        <span className="truncate">{title}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {item.sampleVideoTitles.length === 0 ? (
+                    <div className="text-xs text-slate-400 py-1 flex items-center gap-1.5">
+                      <Film className="w-3.5 h-3.5 text-slate-400" />
+                      <span>등록된 실제 영상 없음 (동영상 업로드 필요)</span>
+                    </div>
+                  ) : (
+                    <ul className="space-y-1 text-xs text-slate-700">
+                      {item.sampleVideoTitles.map((title, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5 truncate">
+                          <span className="text-blue-500 font-black">◆</span>
+                          <span className="truncate">{title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
 
                 {/* Delivery URL Box */}

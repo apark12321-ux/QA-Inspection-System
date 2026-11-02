@@ -169,8 +169,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
       if (saved) {
-        const parsed = (JSON.parse(saved) as ProjectItem[])
-          .filter(p => !LEGACY_EXCLUDED_ALIASES.has((p.alias || '').toLowerCase()) && !LEGACY_EXCLUDED_IDS.has(p.id));
+        const parsed: ProjectItem[] = (JSON.parse(saved) as ProjectItem[])
+          .filter(p => !LEGACY_EXCLUDED_ALIASES.has((p.alias || '').toLowerCase()) && !LEGACY_EXCLUDED_IDS.has(p.id))
+          .map(p => ({
+            ...p,
+            sessions: (p.sessions || []).filter(s => !s.id.startsWith('sess-khcu-')),
+            sessionCount: (p.sessions || []).filter(s => !s.id.startsWith('sess-khcu-')).length
+          }));
         if (parsed.length > 0) {
           // Ensure 경희사이버대학교 is included
           if (!parsed.some(p => p.alias === 'khcu' || p.id === 'proj-khcu')) {
@@ -1006,7 +1011,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [proposalSamples, setProposalSamples] = useState<ProposalSampleItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PROPOSAL_SAMPLES);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = (JSON.parse(saved) as ProposalSampleItem[])
+          .filter(s => !s.id.startsWith('sample-khcu-'));
+        localStorage.setItem(STORAGE_KEYS.PROPOSAL_SAMPLES, JSON.stringify(parsed));
+        return parsed;
+      }
     } catch (e) {
       console.error(e);
     }
@@ -1058,7 +1068,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [proposalClients, setProposalClients] = useState<ProposalClientPackage[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PROPOSAL_CLIENTS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = (JSON.parse(saved) as ProposalClientPackage[])
+          .filter(c => c.id !== 'client-khcu' && c.id !== 'client-demo');
+        localStorage.setItem(STORAGE_KEYS.PROPOSAL_CLIENTS, JSON.stringify(parsed));
+        return parsed;
+      }
     } catch (e) {
       console.error(e);
     }
