@@ -45,7 +45,9 @@ const RootContent: React.FC = () => {
     activeProject,
     currentProjectSlug,
     setCurrentProjectSlug,
-    proposalSamples
+    proposalSamples,
+    isAdminMode,
+    setIsAdminMode
   } = useApp();
 
   const [notifOpen, setNotifOpen] = useState(false);
@@ -76,6 +78,12 @@ const RootContent: React.FC = () => {
     const timer = window.setTimeout(() => setShareLoadTimedOut(true), 12000);
     return () => window.clearTimeout(timer);
   }, [isCloudSynced, sharedVideo, sharedVideoId]);
+
+  useEffect(() => {
+    if (!isAdminMode && userViewMode !== 'review') {
+      setUserViewMode('review');
+    }
+  }, [isAdminMode, userViewMode, setUserViewMode]);
 
   if (sharedVideoId) {
     return (
@@ -123,11 +131,6 @@ const RootContent: React.FC = () => {
     );
   }
 
-  const proposalSlug = new URLSearchParams(window.location.search).get('proposal') || new URLSearchParams(window.location.search).get('client');
-  if (proposalSlug) {
-    return <ProposalClientView clientSlug={proposalSlug} />;
-  }
-
   const openReview = () => {
     setPortalMode('user');
     setUserViewMode('review');
@@ -161,7 +164,11 @@ const RootContent: React.FC = () => {
 
             <div className="sidebar-scroll">
               <div className="sidebar-section">
-                <div className="sidebar-section-label">{language === 'ko' ? '워크스페이스' : 'WORKSPACE'}</div>
+                <div className="sidebar-section-label">
+                  {isAdminMode
+                    ? (language === 'ko' ? '관리자 워크스페이스' : 'ADMIN WORKSPACE')
+                    : (language === 'ko' ? '심사위원 검수 공간' : 'REVIEW WORKSPACE')}
+                </div>
                 <button
                   type="button"
                   onClick={openReview}
@@ -169,30 +176,38 @@ const RootContent: React.FC = () => {
                 >
                   <ClipboardCheck size={17} />
                   <span>{language === 'ko' ? '동영상 강의 검수' : 'Video review'}</span>
-                  <span className="sidebar-link-count">{videos.filter(video => video.status === 'PENDING').length}</span>
+                  <span className="sidebar-link-count">
+                    {currentProject ? projectVideoCount(currentProject.id) : videos.filter(video => video.status === 'PENDING').length}
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  onClick={openProposal}
-                  className={'sidebar-link' + (userViewMode === 'proposal' ? ' active' : '')}
-                >
-                  <Sparkles size={17} />
-                  <span>{language === 'ko' ? '제안샘플 사이트' : 'Proposal samples'}</span>
-                  <span className="sidebar-link-count">{proposalSamples.length}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={openRegistration}
-                  className={'sidebar-link' + (userViewMode === 'registration' ? ' active' : '')}
-                >
-                  <FolderKanban size={17} />
-                  <span>{language === 'ko' ? '프로젝트 관리' : 'Projects'}</span>
-                </button>
-                <button type="button" onClick={openAdmin} className="sidebar-link">
-                  <LayoutDashboard size={17} />
-                  <span>{language === 'ko' ? '운영 콘솔' : 'Operations'}</span>
-                  <span className="sidebar-link-arrow">↗</span>
-                </button>
+
+                {/* 관리자 전용 메뉴: 심사위원/제출 링크에서는 일체 비노출 */}
+                {isAdminMode && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={openProposal}
+                      className={'sidebar-link' + (userViewMode === 'proposal' ? ' active' : '')}
+                    >
+                      <Sparkles size={17} />
+                      <span>{language === 'ko' ? '제안샘플 사이트' : 'Proposal samples'}</span>
+                      <span className="sidebar-link-count">{proposalSamples.length}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openRegistration}
+                      className={'sidebar-link' + (userViewMode === 'registration' ? ' active' : '')}
+                    >
+                      <FolderKanban size={17} />
+                      <span>{language === 'ko' ? '프로젝트 관리' : 'Projects'}</span>
+                    </button>
+                    <button type="button" onClick={openAdmin} className="sidebar-link">
+                      <LayoutDashboard size={17} />
+                      <span>{language === 'ko' ? '운영 콘솔' : 'Operations'}</span>
+                      <span className="sidebar-link-arrow">↗</span>
+                    </button>
+                  </>
+                )}
               </div>
 
               <div className="sidebar-section project-nav-section">
@@ -220,6 +235,34 @@ const RootContent: React.FC = () => {
             </div>
 
             <div className="sidebar-bottom">
+              {/* 모드 전환 안내 및 스위치 (관리자 <-> 심사위원 제출 링크 뷰) */}
+              <div className="p-2.5 mb-2.5 bg-slate-900/90 rounded-lg border border-slate-700/70 text-xs">
+                <div className="flex items-center justify-between text-[11px] text-slate-300 mb-1.5">
+                  <span className="font-semibold">
+                    {isAdminMode ? '👑 현재: 내부 관리자 모드' : '🎓 현재: 심사위원 제출 링크 뷰'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !isAdminMode;
+                    setIsAdminMode(next);
+                    if (!next) {
+                      setUserViewMode('review');
+                    }
+                  }}
+                  className={`w-full py-1.5 px-2 rounded-md font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs ${
+                    isAdminMode
+                      ? 'bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-600'
+                      : 'bg-blue-600 hover:bg-blue-500 text-white shadow-xs'
+                  }`}
+                >
+                  {isAdminMode
+                    ? (language === 'ko' ? '심사위원 모드로 미리보기' : 'Preview Evaluator View')
+                    : (language === 'ko' ? '🔒 관리자 모드로 전환' : 'Switch to Admin Mode')}
+                </button>
+              </div>
+
               <div className="sidebar-sync">
                 <span className={'sync-indicator' + ((isOffline || !isCloudSynced) ? ' offline' : '')} />
                 <div>
@@ -234,19 +277,23 @@ const RootContent: React.FC = () => {
           <div className="workspace-main">
             <header className="workspace-topbar">
               <div className="topbar-breadcrumb">
-                <span>{language === 'ko' ? '콘텐츠 운영' : 'Content Operations'}</span>
+                <span>
+                  {isAdminMode
+                    ? (language === 'ko' ? '콘텐츠 운영' : 'Content Operations')
+                    : (language === 'ko' ? '제안 심사위원 검수' : 'Proposal Review')}
+                </span>
                 <span className="breadcrumb-separator">/</span>
                 <strong>
                   {userViewMode === 'registration'
                     ? (language === 'ko' ? '프로젝트 관리' : 'Project management')
                     : userViewMode === 'proposal'
                     ? (language === 'ko' ? '제안샘플 사이트 (서류평가 QR·URL)' : 'Proposal samples (QR & URL)')
-                    : (language === 'ko' ? '동영상 강의 검수' : 'Video review')}
+                    : (currentProject?.name ? `${currentProject.name}` : (language === 'ko' ? '동영상 강의 검수' : 'Video review'))}
                 </strong>
               </div>
 
               <div className="topbar-actions">
-                {userViewMode === 'review' && (
+                {isAdminMode && userViewMode === 'review' && (
                   <button type="button" className="button button-primary topbar-upload" onClick={() => setUploadModalOpen(true)}>
                     <Upload size={16} />
                     <span>{t.uploadBtn}</span>

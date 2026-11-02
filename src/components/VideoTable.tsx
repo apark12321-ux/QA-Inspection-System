@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { useApp } from '../context/AppContext';
 import { translations } from '../utils/i18n';
 import { ReviewStatus, VideoSession } from '../types';
@@ -13,7 +14,14 @@ import {
   Sparkles,
   MessageSquare,
   Link as LinkIcon,
-  Check
+  Check,
+  QrCode,
+  Download,
+  Copy,
+  ShieldCheck,
+  X,
+  ExternalLink,
+  FileText
 } from 'lucide-react';
 
 export const VideoTable: React.FC = () => {
@@ -27,13 +35,18 @@ export const VideoTable: React.FC = () => {
     setCurrentProjectSlug,
     activeProject,
     addVideoToProposalSamples,
-    setUserViewMode
+    setUserViewMode,
+    isAdminMode,
+    setIsAdminMode
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | ReviewStatus>('ALL');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedProposalUrl, setCopiedProposalUrl] = useState(false);
   const [addedSampleId, setAddedSampleId] = useState<string | null>(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const t = translations[language];
 
@@ -96,6 +109,48 @@ export const VideoTable: React.FC = () => {
       setTimeout(() => setCopiedLink(false), 2000);
     } catch {
       setCopiedLink(false);
+    }
+  };
+
+  const projectProposalUrl = useMemo(() => {
+    if (typeof window === 'undefined' || !selectedProjectAlias) return '';
+    const origin = window.location.origin;
+    return `${origin}/?p=${encodeURIComponent(selectedProjectAlias)}`;
+  }, [selectedProjectAlias]);
+
+  useEffect(() => {
+    if (!isQrModalOpen || !qrCanvasRef.current || !projectProposalUrl) return;
+    QRCode.toCanvas(qrCanvasRef.current, projectProposalUrl, {
+      width: 170,
+      margin: 1,
+      color: { dark: '#0f172a', light: '#ffffff' }
+    });
+  }, [isQrModalOpen, projectProposalUrl]);
+
+  const handleDownloadQrPng = () => {
+    if (!qrCanvasRef.current || !displayedProject) return;
+    try {
+      const dataUrl = qrCanvasRef.current.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      const cleanName = (displayedProject.alias || displayedProject.name).replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+      a.download = `${cleanName}_제안서_검수_QR.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCopyProposalUrl = async () => {
+    if (!projectProposalUrl) return;
+    try {
+      await navigator.clipboard.writeText(projectProposalUrl);
+      setCopiedProposalUrl(true);
+      setTimeout(() => setCopiedProposalUrl(false), 2000);
+    } catch {
+      setCopiedProposalUrl(false);
     }
   };
 
@@ -178,16 +233,43 @@ export const VideoTable: React.FC = () => {
             )}
           </button>
 
+          {isAdminMode && (
+            <button
+              type="button"
+              onClick={() => setIsQrModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs sm:text-sm font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
+              title="제안서 제출용 QR코드 및 전용 검수 링크 발급"
+            >
+              <QrCode className="w-4 h-4 text-emerald-300" />
+              <span>{language === 'ko' ? '제안서 제출용 QR·링크' : 'Proposal QR & Link'}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Evaluator Proposal Review Mode Banner */}
+      <div className="bg-sky-50 border border-sky-200/90 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+        <div className="flex items-center gap-2.5 text-sky-950 font-medium">
+          <ShieldCheck className="w-4 h-4 text-sky-700 shrink-0" />
+          <span>
+            <strong>제안 심사용 영상 검수 모드:</strong> 현재 <strong>[{displayedProject?.name}]</strong> 심사위원 전용 샘플 영상({projectVideos.length}건)이 제공됩니다. (타사 프로젝트 일체 격리 차단)
+          </span>
+        </div>
+        {isAdminMode ? (
           <button
             type="button"
-            onClick={() => setUserViewMode('proposal')}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs sm:text-sm font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer"
-            title={language === 'ko' ? '제안샘플 사이트 및 QR·URL 도구 열기' : 'Open Proposal Sample Showcase'}
+            onClick={() => setIsQrModalOpen(true)}
+            className="inline-flex items-center gap-1 text-sky-800 hover:text-sky-950 font-bold underline underline-offset-2 shrink-0 cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>{language === 'ko' ? '제안샘플 사이트' : 'Proposal Samples'}</span>
+            <QrCode className="w-3.5 h-3.5" />
+            <span>제안서 기재용 QR·링크 관리</span>
           </button>
-        </div>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-sky-800 font-semibold shrink-0">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>심사위원 평가 전용 모드</span>
+          </span>
+        )}
       </div>
 
       {/* ================= 2. MAIN TABLE CARD ================= */}
@@ -319,31 +401,33 @@ export const VideoTable: React.FC = () => {
                       )}
                     </td>
 
-                    {/* 재생 및 제안샘플 등록 버튼 */}
+                    {/* 재생 및 제안샘플 등록 버튼 (샘플등록은 관리자만 노출) */}
                     <td className="py-3.5 px-4 sm:px-6 text-right align-middle whitespace-nowrap">
                       <div className="inline-flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            addVideoToProposalSamples(video, displayedProject?.name);
-                            setAddedSampleId(video.id);
-                            setTimeout(() => setAddedSampleId(null), 2500);
-                          }}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-2 bg-slate-100 hover:bg-sky-50 active:bg-sky-100 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-xs font-semibold shadow-2xs transition-all cursor-pointer"
-                          title={language === 'ko' ? '제안샘플 사이트에 이 강좌를 카드로 즉시 추가' : 'Add to Proposal Samples'}
-                        >
-                          {addedSampleId === video.id ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              <span className="text-emerald-700 font-bold">{language === 'ko' ? '샘플 등록됨' : 'Added!'}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                              <span>{language === 'ko' ? '제안샘플 등록' : 'Add Sample'}</span>
-                            </>
-                          )}
-                        </button>
+                        {isAdminMode && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              addVideoToProposalSamples(video, displayedProject?.name);
+                              setAddedSampleId(video.id);
+                              setTimeout(() => setAddedSampleId(null), 2500);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-2 bg-slate-100 hover:bg-sky-50 active:bg-sky-100 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+                            title={language === 'ko' ? '제안샘플 사이트에 이 강좌를 카드로 즉시 추가' : 'Add to Proposal Samples'}
+                          >
+                            {addedSampleId === video.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="text-emerald-700 font-bold">{language === 'ko' ? '샘플 등록됨' : 'Added!'}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                <span>{language === 'ko' ? '제안샘플 등록' : 'Add Sample'}</span>
+                              </>
+                            )}
+                          </button>
+                        )}
 
                         <button
                           type="button"
@@ -371,6 +455,120 @@ export const VideoTable: React.FC = () => {
         </div>
 
       </div>
+
+      {/* ================= 3. PROPOSAL QR & LINK MODAL ================= */}
+      {isQrModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden border border-slate-200 shadow-2xl flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    제안서 제출용 전용 링크 & QR코드
+                  </h3>
+                  <p className="text-xs text-slate-500 line-clamp-1">
+                    {displayedProject?.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQrModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              {/* Delivery URL Display */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  제안서(서류평가 문서)에 기재할 검수 시스템 링크 주소
+                </label>
+                <div className="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between gap-3 font-mono text-xs sm:text-sm">
+                  <span className="text-blue-300 truncate select-all">{projectProposalUrl}</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyProposalUrl}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+                  >
+                    {copiedProposalUrl ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-300" />
+                        <span>복사됨!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>링크 복사</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* QR Code Display & Download */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-2xs shrink-0 flex items-center justify-center">
+                  <canvas ref={qrCanvasRef} width={170} height={170} className="w-[140px] h-[140px]" />
+                </div>
+
+                <div className="space-y-2 text-center sm:text-left">
+                  <div className="text-xs font-bold text-slate-800">
+                    제안서 삽입용 고해상도 QR코드
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    한글(HWP), MS Word, PowerPoint 제안서에 삽입하기 적합한 고품질 인쇄용 PNG 이미지입니다.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleDownloadQrPng}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>QR코드 이미지 다운로드 (PNG)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Isolation Guarantee */}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong>심사위원 검수 동작 보장:</strong> 심사위원이 이 링크(QR)로 접속하면 전체 영상 검수 시스템이 열리며,
+                  오직 본 제안사의 샘플 영상({projectVideos.length}건)만 검수할 수 있습니다. 타사 프로젝트 및 타 기관 정보는 100% 격리 차단됩니다.
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAdminMode(false);
+                  setIsQrModalOpen(false);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer shadow-2xs"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>심사위원 시점(제출 링크)으로 미리보기</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsQrModalOpen(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-lg cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

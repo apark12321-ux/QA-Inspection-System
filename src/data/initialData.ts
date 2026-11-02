@@ -3,6 +3,98 @@ import { VideoSession, UserAccount, AuditLog, NotificationItem } from '../types'
 export const INITIAL_USERS: UserAccount[] = [];
 
 export const INITIAL_VIDEOS: VideoSession[] = [
+  // Kyung Hee Cyber University Proposal Sample Videos (khcu)
+  {
+    id: 'khcu_senior_01',
+    projectId: 'proj-khcu',
+    weekId: 1,
+    weekTitle: '시니어재무컨설팅',
+    sessionTitle: '시니어재무컨설팅 (1인강의형 대표 샘플)',
+    fileName: '시니어재무컨설팅_01차시.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    duration: 1820,
+    fileSize: '745 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.28 10:00',
+    updatedAt: '2026.10.28 10:00',
+    reviewerName: '',
+    reviews: [
+      {
+        id: 'rev-khcu-01',
+        author: '품질검수팀',
+        role: 'REVIEWER',
+        timestampSeconds: 125,
+        timestampFormatted: '02:05',
+        verdict: 'APPROVED',
+        content: '시니어 은퇴 후 실물 자산 진단 모델 판서 및 1080p 고화질 1인강의형 연출 양호',
+        createdAt: '2026-10-28T10:15:00Z'
+      }
+    ],
+    subtitles: [
+      {
+        id: 1,
+        startTime: '00:00',
+        endTime: '00:08',
+        startSeconds: 0,
+        endSeconds: 8,
+        textKo: '안녕하십니까? 경희사이버대학교 시니어재무컨설팅 강좌 1차시입니다.',
+        textEn: 'Hello. Welcome to Kyung Hee Cyber University Senior Financial Consulting Session 1.'
+      },
+      {
+        id: 2,
+        startTime: '00:08',
+        endTime: '00:20',
+        startSeconds: 8,
+        endSeconds: 20,
+        textKo: '다양한 시각적 자료와 전자칠판을 활용하여 은퇴 후 실물 자산 진단 모델을 점검합니다.',
+        textEn: 'Using various visual materials and digital blackboard, we examine asset diagnosis models.'
+      }
+    ],
+    pipeline: {
+      jobId: 'job-khcu-01',
+      overallProgress: 100,
+      currentStage: '검수 대기 중 (S3 원본 저장 완료)',
+      stages: [
+        { name: 'S3 Multipart Upload', description: 'edutem-video-review 저장 완료', status: 'done', progress: 100 },
+        { name: 'AWS MediaConvert', description: '1080p 고화질 트랜스코딩 완료', status: 'done', progress: 100 },
+        { name: 'Gemini AI Subtitles', description: 'AI 자막 및 번역 인덱싱 완료', status: 'done', progress: 100 },
+        { name: 'DynamoDB Indexing', description: '검수 대기열 동기화 완료', status: 'done', progress: 100 }
+      ]
+    }
+  },
+  {
+    id: 'khcu_tax_01',
+    projectId: 'proj-khcu',
+    weekId: 1,
+    weekTitle: '세무실무적용사례',
+    sessionTitle: '세무실무적용사례 (1인강의형 대표 샘플)',
+    fileName: '세무실무적용사례_01차시.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+    duration: 1650,
+    fileSize: '680 MB',
+    status: 'PENDING',
+    uploadedAt: '2026.10.28 10:15',
+    updatedAt: '2026.10.28 10:15',
+    reviewerName: '',
+    reviews: [],
+    subtitles: [
+      {
+        id: 1,
+        startTime: '00:00',
+        endTime: '00:09',
+        startSeconds: 0,
+        endSeconds: 9,
+        textKo: '경희사이버대학교 세무실무적용사례 1인강의형 전면 연출 샘플입니다.',
+        textEn: 'Kyung Hee Cyber University Tax Practice Applied Cases 1-person lecture sample.'
+      }
+    ],
+    pipeline: {
+      jobId: 'job-khcu-02',
+      overallProgress: 100,
+      currentStage: '검수 대기 중',
+      stages: []
+    }
+  },
   // 1. Bio Health 시대의 ESG와 지속 가능한 성장 (Screenshot 1 Active Dataset)
   {
     id: 'dhc26_01',

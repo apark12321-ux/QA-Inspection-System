@@ -110,6 +110,8 @@ interface AppContextType {
   toggleSampleInProposalClient: (clientId: string, sampleId: string) => void;
   activeProposalSlug: string | null;
   setActiveProposalSlug: (slug: string | null) => void;
+  isAdminMode: boolean;
+  setIsAdminMode: (admin: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -161,7 +163,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (firebaseConfigured) return [];
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as ProjectItem[];
+        const hasKhcu = parsed.some(p => p.id === 'proj-khcu' || p.alias === 'khcu');
+        if (!hasKhcu) {
+          const khcuProject = INITIAL_PROJECTS.find(p => p.id === 'proj-khcu');
+          if (khcuProject) return [khcuProject, ...parsed];
+        }
+        return parsed;
+      }
     } catch (e) {
       console.error(e);
     }
@@ -171,6 +181,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [userViewMode, setUserViewModeState] = useState<'registration' | 'review' | 'proposal'>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
+      if (params.get('p') || params.get('proposal') || params.get('client')) return 'review';
       if (params.get('view') === 'proposal' || params.get('view') === 'sample') return 'proposal';
       const saved = localStorage.getItem(STORAGE_KEYS.USER_VIEW_MODE) as 'registration' | 'review' | 'proposal';
       if (saved === 'registration' || saved === 'review' || saved === 'proposal') return saved;
@@ -190,7 +201,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (firebaseConfigured) return [];
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
-      if (saved) return (JSON.parse(saved) as VideoSession[]).map(removeDemoPeopleFromVideo);
+      if (saved) {
+        const parsed = (JSON.parse(saved) as VideoSession[]).map(removeDemoPeopleFromVideo);
+        const hasKhcu = parsed.some(v => v.id === 'khcu_senior_01');
+        if (!hasKhcu) {
+          const khcuVideos = INITIAL_VIDEOS.filter(v => v.projectId === 'proj-khcu');
+          return [...khcuVideos, ...parsed];
+        }
+        return parsed;
+      }
     } catch (e) {
       console.error(e);
     }
@@ -239,11 +258,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return 'ko';
   });
 
+  const [isAdminMode, setIsAdminModeState] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      // Explicit admin flags
+      if (params.get('portal') === 'admin' || params.get('mode') === 'admin' || params.get('admin') === 'true') {
+        return true;
+      }
+      // If accessed via submitted proposal link (?p=..., ?proposal=..., ?client=..., ?project=...), it is strictly external evaluator mode!
+      if (params.get('p') || params.get('proposal') || params.get('client') || params.get('project') || params.get('evaluator')) {
+        return false;
+      }
+      const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '');
+      if (pathname && pathname !== 'admin') {
+        // Direct project link access like /khcu or /inha26 is external evaluator mode
+        return false;
+      }
+      const saved = localStorage.getItem('video_review_is_admin_v1');
+      if (saved !== null) return saved === 'true';
+    } catch (e) {
+      console.error(e);
+    }
+    // Default to false (Evaluator view) so external reviewers/submitted links only see allowed categories
+    return false;
+  });
+
+  const setIsAdminMode = (admin: boolean) => {
+    setIsAdminModeState(admin);
+    try {
+      localStorage.setItem('video_review_is_admin_v1', String(admin));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const parseCurrentRoute = () => {
     try {
       const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '');
       const params = new URLSearchParams(window.location.search);
       const isParamAdmin = params.get('portal') === 'admin';
+      const paramSlug = params.get('p') || params.get('proposal') || params.get('client') || params.get('project');
 
       if (pathname === 'admin' || isParamAdmin) {
         return { slug: null, mode: 'admin' as const };
@@ -251,6 +305,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (pathname.endsWith('/admin')) {
         const parts = pathname.split('/');
         return { slug: parts[0] || null, mode: 'admin' as const };
+      }
+      if (paramSlug) {
+        return { slug: paramSlug, mode: 'user' as const };
       }
       if (pathname) {
         return { slug: pathname, mode: 'user' as const };
@@ -304,7 +361,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           p.alias.toLowerCase() === currentProjectSlug.toLowerCase() ||
           p.id.toLowerCase() === currentProjectSlug.toLowerCase()
       ) || null
-    : projects.find(p => p.alias === 'dhc26' || p.id === 'proj-bio-esg') || projects[0] || null;
+    : projects.find(p => p.alias === 'khcu' || p.id === 'proj-khcu') ||
+      projects.find(p => p.alias === 'dhc26' || p.id === 'proj-bio-esg') ||
+      projects[0] || null;
 
   useEffect(() => {
     if (!firebaseConfigured) return;
@@ -1085,7 +1144,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteProposalClient,
         toggleSampleInProposalClient,
         activeProposalSlug,
-        setActiveProposalSlug
+        setActiveProposalSlug,
+        isAdminMode,
+        setIsAdminMode
       }}
     >
       {children}
