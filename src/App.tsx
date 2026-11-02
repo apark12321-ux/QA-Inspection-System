@@ -164,11 +164,7 @@ const RootContent: React.FC = () => {
 
             <div className="sidebar-scroll">
               <div className="sidebar-section">
-                <div className="sidebar-section-label">
-                  {isAdminMode
-                    ? (language === 'ko' ? '관리자 워크스페이스' : 'ADMIN WORKSPACE')
-                    : (language === 'ko' ? '심사위원 검수 공간' : 'REVIEW WORKSPACE')}
-                </div>
+                <div className="sidebar-section-label">{language === 'ko' ? '동영상 검수' : 'CONTENT REVIEW'}</div>
                 <button
                   type="button"
                   onClick={openReview}
@@ -181,7 +177,7 @@ const RootContent: React.FC = () => {
                   </span>
                 </button>
 
-                {/* 관리자 전용 메뉴: 심사위원/제출 링크에서는 일체 비노출 */}
+                {/* 관리자 전용 메뉴: 일반 접속 및 제출 링크에서는 일체 비노출 */}
                 {isAdminMode && (
                   <>
                     <button
@@ -235,34 +231,6 @@ const RootContent: React.FC = () => {
             </div>
 
             <div className="sidebar-bottom">
-              {/* 모드 전환 안내 및 스위치 (관리자 <-> 심사위원 제출 링크 뷰) */}
-              <div className="p-2.5 mb-2.5 bg-slate-900/90 rounded-lg border border-slate-700/70 text-xs">
-                <div className="flex items-center justify-between text-[11px] text-slate-300 mb-1.5">
-                  <span className="font-semibold">
-                    {isAdminMode ? '👑 현재: 내부 관리자 모드' : '🎓 현재: 심사위원 제출 링크 뷰'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !isAdminMode;
-                    setIsAdminMode(next);
-                    if (!next) {
-                      setUserViewMode('review');
-                    }
-                  }}
-                  className={`w-full py-1.5 px-2 rounded-md font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs ${
-                    isAdminMode
-                      ? 'bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-600'
-                      : 'bg-blue-600 hover:bg-blue-500 text-white shadow-xs'
-                  }`}
-                >
-                  {isAdminMode
-                    ? (language === 'ko' ? '심사위원 모드로 미리보기' : 'Preview Evaluator View')
-                    : (language === 'ko' ? '🔒 관리자 모드로 전환' : 'Switch to Admin Mode')}
-                </button>
-              </div>
-
               <div className="sidebar-sync">
                 <span className={'sync-indicator' + ((isOffline || !isCloudSynced) ? ' offline' : '')} />
                 <div>
@@ -277,17 +245,13 @@ const RootContent: React.FC = () => {
           <div className="workspace-main">
             <header className="workspace-topbar">
               <div className="topbar-breadcrumb">
-                <span>
-                  {isAdminMode
-                    ? (language === 'ko' ? '콘텐츠 운영' : 'Content Operations')
-                    : (language === 'ko' ? '제안 심사위원 검수' : 'Proposal Review')}
-                </span>
+                <span>{language === 'ko' ? '동영상 강의 검수' : 'Video Review'}</span>
                 <span className="breadcrumb-separator">/</span>
                 <strong>
                   {userViewMode === 'registration'
                     ? (language === 'ko' ? '프로젝트 관리' : 'Project management')
                     : userViewMode === 'proposal'
-                    ? (language === 'ko' ? '제안샘플 사이트 (서류평가 QR·URL)' : 'Proposal samples (QR & URL)')
+                    ? (language === 'ko' ? '제안샘플 사이트' : 'Proposal samples')
                     : (currentProject?.name ? `${currentProject.name}` : (language === 'ko' ? '동영상 강의 검수' : 'Video review'))}
                 </strong>
               </div>
@@ -373,7 +337,17 @@ const RootContent: React.FC = () => {
 
             <footer className="workspace-footer">
               <span>WHOMEDIA <span className="footer-dot">·</span> {language === 'ko' ? '영상 품질 검수 워크스페이스' : 'Video quality review workspace'}</span>
-              <span>{language === 'ko' ? '검수 의견은 작업 이력에 자동 기록됩니다.' : 'Review actions are saved to the activity log.'}</span>
+              <div className="flex items-center gap-3">
+                <span>{language === 'ko' ? '검수 의견은 작업 이력에 자동 기록됩니다.' : 'Review actions are saved to the activity log.'}</span>
+                <button
+                  type="button"
+                  onClick={() => setIsAdminMode(!isAdminMode)}
+                  className="text-[11px] text-slate-400/80 hover:text-slate-600 transition-colors cursor-pointer"
+                  title="관리자 설정"
+                >
+                  {isAdminMode ? '· 관리자 해제' : '· 관리자'}
+                </button>
+              </div>
             </footer>
           </div>
         </div>

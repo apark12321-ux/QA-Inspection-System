@@ -247,31 +247,6 @@ export const VideoTable: React.FC = () => {
         </div>
       </div>
 
-      {/* Evaluator Proposal Review Mode Banner */}
-      <div className="bg-sky-50 border border-sky-200/90 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
-        <div className="flex items-center gap-2.5 text-sky-950 font-medium">
-          <ShieldCheck className="w-4 h-4 text-sky-700 shrink-0" />
-          <span>
-            <strong>제안 심사용 영상 검수 모드:</strong> 현재 <strong>[{displayedProject?.name}]</strong> 심사위원 전용 샘플 영상({projectVideos.length}건)이 제공됩니다. (타사 프로젝트 일체 격리 차단)
-          </span>
-        </div>
-        {isAdminMode ? (
-          <button
-            type="button"
-            onClick={() => setIsQrModalOpen(true)}
-            className="inline-flex items-center gap-1 text-sky-800 hover:text-sky-950 font-bold underline underline-offset-2 shrink-0 cursor-pointer"
-          >
-            <QrCode className="w-3.5 h-3.5" />
-            <span>제안서 기재용 QR·링크 관리</span>
-          </button>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 text-sky-800 font-semibold shrink-0">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>심사위원 평가 전용 모드</span>
-          </span>
-        )}
-      </div>
-
       {/* ================= 2. MAIN TABLE CARD ================= */}
       <div className="bg-white rounded-xl shadow-2xs border border-slate-200/90 overflow-hidden">
         
@@ -555,7 +530,7 @@ export const VideoTable: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer shadow-2xs"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>심사위원 시점(제출 링크)으로 미리보기</span>
+                <span>제출 화면 미리보기</span>
               </button>
 
               <button

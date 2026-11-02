@@ -3,7 +3,7 @@ import { ProjectItem, VideoSession } from '../types';
 export const INITIAL_PROJECTS: ProjectItem[] = [
   {
     id: 'proj-khcu',
-    name: '경희사이버대학교 2026학년도 원격 정규 교육과정 콘텐츠 개발 사업 (제안 심사위원 검수용)',
+    name: '경희사이버대학교 2026학년도 원격 정규 교육과정 콘텐츠 개발 사업',
     alias: 'khcu',
     weekCount: 1,
     sessionCount: 2,
@@ -11,7 +11,7 @@ export const INITIAL_PROJECTS: ProjectItem[] = [
     sessions: [
       {
         id: 'sess-khcu-01',
-        title: '시니어재무컨설팅 (1인강의형 대표 샘플)',
+        title: '시니어재무컨설팅 (1인강의형)',
         videoCount: 1,
         videos: [
           {
@@ -19,7 +19,7 @@ export const INITIAL_PROJECTS: ProjectItem[] = [
             projectId: 'proj-khcu',
             weekId: 1,
             weekTitle: '시니어재무컨설팅',
-            sessionTitle: '시니어재무컨설팅 (1인강의형 대표 샘플)',
+            sessionTitle: '시니어재무컨설팅 (1인강의형)',
             fileName: '시니어재무컨설팅_01차시.mp4',
             videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
             duration: 1820,
@@ -76,7 +76,7 @@ export const INITIAL_PROJECTS: ProjectItem[] = [
       },
       {
         id: 'sess-khcu-02',
-        title: '세무실무적용사례 (1인강의형 대표 샘플)',
+        title: '세무실무적용사례 (1인강의형)',
         videoCount: 1,
         videos: [
           {
@@ -84,7 +84,7 @@ export const INITIAL_PROJECTS: ProjectItem[] = [
             projectId: 'proj-khcu',
             weekId: 1,
             weekTitle: '세무실무적용사례',
-            sessionTitle: '세무실무적용사례 (1인강의형 대표 샘플)',
+            sessionTitle: '세무실무적용사례 (1인강의형)',
             fileName: '세무실무적용사례_01차시.mp4',
             videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
             duration: 1650,
