@@ -60,6 +60,7 @@ interface AppContextType {
       sessionTitle: string;
       fileName: string;
       videoUrl: string;
+      sourceType?: VideoSession['sourceType'];
       duration: number;
       fileSize: string;
       projectId?: string;
@@ -151,12 +152,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [userViewMode, setUserViewModeState] = useState<'registration' | 'review'>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.USER_VIEW_MODE) as 'registration' | 'review';
+      const saved = localStorage.getItem(STORAGE_KEYS.USER_VIEW_MODE);
       if (saved === 'registration' || saved === 'review') return saved;
     } catch (e) {
       console.error(e);
     }
-    return 'review'; // Defaults to clean inspection review portal for clients & reviewers
+    return 'review'; // Defaults directly to video inspection workspace
   });
 
   const setUserViewMode = (mode: 'registration' | 'review') => {

@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import subtitleHandler from './api/ai/subtitles';
+import subtitleHandler from './api/ai/subtitles.ts';
 
 dotenv.config();
 
@@ -201,7 +201,10 @@ app.post('/api/ai/subtitles', (req, res) => {
   void subtitleHandler({ method: req.method, body: req.body } as any, res as any);
 });
 async function start() {
-  if (process.env.NODE_ENV === 'production') {
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    fs.existsSync(path.resolve(process.cwd(), 'dist', 'index.html'));
+  if (isProduction) {
     const distDir = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distDir));
     // SPA Wildcard Route for /:projectId, /:projectId/admin, /admin, etc.

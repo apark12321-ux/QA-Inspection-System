@@ -150,7 +150,7 @@ const RootContent: React.FC = () => {
                   className={'sidebar-link' + (userViewMode === 'review' ? ' active' : '')}
                 >
                   <ClipboardCheck size={17} />
-                  <span>{language === 'ko' ? '영상 검수' : 'Video review'}</span>
+                  <span>{language === 'ko' ? '동영상 강의 검수' : 'Video review'}</span>
                   <span className="sidebar-link-count">{videos.filter(video => video.status === 'PENDING').length}</span>
                 </button>
                 <button
@@ -218,9 +218,13 @@ const RootContent: React.FC = () => {
           <div className="workspace-main">
             <header className="workspace-topbar">
               <div className="topbar-breadcrumb">
-                <span>{language === 'ko' ? '콘텐츠 운영' : 'Content operations'}</span>
+                <span>{language === 'ko' ? '콘텐츠 운영' : 'Content Operations'}</span>
                 <span className="breadcrumb-separator">/</span>
-                <strong>{userViewMode === 'registration' ? (language === 'ko' ? '프로젝트 관리' : 'Project management') : (language === 'ko' ? '영상 검수' : 'Video review')}</strong>
+                <strong>
+                  {userViewMode === 'registration'
+                    ? (language === 'ko' ? '프로젝트 관리' : 'Project management')
+                    : (language === 'ko' ? '동영상 강의 검수' : 'Video review')}
+                </strong>
               </div>
 
               <div className="topbar-actions">

@@ -1,4 +1,4 @@
-import { firestore } from './firebaseClient';
+import { firestore, FirestoreDocument } from './firebaseClient';
 import { FirestoreSnapshotData } from './firestoreAdapter';
 
 export function subscribeToReviewData(

@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import subtitleHandler from './api/ai/subtitles';
+import subtitleHandler from './api/ai/subtitles.ts';
 import { env } from 'node:process';
 
 function aiSubtitleApiPlugin() {

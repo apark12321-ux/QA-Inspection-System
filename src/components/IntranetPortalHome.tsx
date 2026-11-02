@@ -33,7 +33,7 @@ export const IntranetPortalHome: React.FC<IntranetPortalHomeProps> = ({
   const t = translations[language];
 
   const [activeModal, setActiveModal] = useState<
-    'handbook' | 'projects' | 'newTool' | 'culture' | 'teamUpdate' | 'annualReport' | null
+    'handbook' | 'projects' | 'newTool' | 'culture' | 'teamUpdate' | 'annualReport' | 'recruitment' | null
   >(null);
 
   // Dynamic user-added tools list (matching "거기에 툴을 하나씩 얹어가려고 함")
@@ -271,30 +271,27 @@ export const IntranetPortalHome: React.FC<IntranetPortalHomeProps> = ({
           {/* ================= COLUMN 2 ================= */}
           <div className="flex flex-col gap-4 sm:gap-5">
             
-            {/* Top: Neon Outlined Card 1 (Exact match to "직원 핸드북" / Core Video Review Tool) */}
+            {/* Top: Neon Outlined Card 1 (Exact match to "직원 핸드북") */}
             <div
-              onClick={onOpenVideoReview}
+              onClick={() => setActiveModal('handbook')}
               className="relative aspect-square rounded-2xl border-2 border-fuchsia-500/85 hover:border-pink-400 bg-slate-950/45 backdrop-blur-md p-6 flex flex-col justify-between text-white shadow-xl shadow-fuchsia-500/10 hover:shadow-fuchsia-500/20 hover:scale-[1.02] active:scale-[0.99] transition-all cursor-pointer group"
             >
               {/* Corner Magenta Plus Badge */}
-              <div className="self-end w-7 h-7 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/40 transition-transform group-hover:scale-110">
+              <div className="self-end w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/40 transition-transform group-hover:scale-110">
                 <Plus className="w-4 h-4 stroke-[3]" />
               </div>
 
-              {/* Centered Large Bold Text */}
+              {/* Centered Large Bold Text - Pretendard Black */}
               <div className="my-auto text-center py-2">
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-snug group-hover:text-fuchsia-200 transition-colors">
-                  동영상<br />강의 검수
+                <h3 className="text-2xl sm:text-[26px] font-black tracking-tight text-white leading-tight group-hover:text-fuchsia-200 transition-colors">
+                  직원<br />핸드북
                 </h3>
-                <span className="inline-block mt-2.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">
-                  ⚡ 운영 툴 바로가기
-                </span>
               </div>
 
-              {/* Bottom Stats */}
+              {/* Bottom Quick Indicator */}
               <div className="pt-2 border-t border-fuchsia-900/40 flex items-center justify-between text-[11px] text-fuchsia-300 font-semibold">
-                <span>검수 대기:</span>
-                <span className="font-mono text-white font-bold">{pendingVideosCount}건</span>
+                <span>사내 규정</span>
+                <span className="font-mono text-white font-bold">2026 개정</span>
               </div>
             </div>
 
@@ -304,24 +301,21 @@ export const IntranetPortalHome: React.FC<IntranetPortalHomeProps> = ({
               className="relative aspect-square rounded-2xl bg-white text-slate-900 p-6 flex flex-col justify-between shadow-2xl hover:scale-[1.02] active:scale-[0.99] transition-all cursor-pointer group"
             >
               {/* Corner Magenta Plus Badge */}
-              <div className="self-end w-7 h-7 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/30 transition-transform group-hover:scale-110">
+              <div className="self-end w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/30 transition-transform group-hover:scale-110">
                 <Plus className="w-4 h-4 stroke-[3]" />
               </div>
 
-              {/* Centered Large Bold Text */}
+              {/* Centered Large Bold Text - Pretendard Black */}
               <div className="my-auto text-center py-2">
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-950 leading-snug">
+                <h3 className="text-2xl sm:text-[26px] font-black tracking-tight text-slate-950 leading-tight">
                   연례<br />보고서
                 </h3>
-                <p className="text-xs font-semibold text-slate-500 mt-2">
-                  2026 콘텐츠 품질 지표
-                </p>
               </div>
 
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-bold text-slate-500">
-                <span>승인율</span>
+                <span>품질 지표</span>
                 <span className="text-emerald-600 font-mono font-black">
-                  {videos.length > 0 ? Math.round((approvedVideosCount / videos.length) * 100) : 0}%
+                  {videos.length > 0 ? Math.round((approvedVideosCount / videos.length) * 100) : 100}%
                 </span>
               </div>
             </div>
@@ -337,23 +331,20 @@ export const IntranetPortalHome: React.FC<IntranetPortalHomeProps> = ({
               className="relative aspect-square rounded-2xl border-2 border-fuchsia-500/85 hover:border-pink-400 bg-slate-950/45 backdrop-blur-md p-6 flex flex-col justify-between text-white shadow-xl shadow-fuchsia-500/10 hover:shadow-fuchsia-500/20 hover:scale-[1.02] active:scale-[0.99] transition-all cursor-pointer group"
             >
               {/* Corner Magenta Plus Badge */}
-              <div className="self-end w-7 h-7 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/40 transition-transform group-hover:scale-110">
+              <div className="self-end w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/40 transition-transform group-hover:scale-110">
                 <Plus className="w-4 h-4 stroke-[3]" />
               </div>
 
-              {/* Centered Large Bold Text */}
+              {/* Centered Large Bold Text - Pretendard Black */}
               <div className="my-auto text-center py-2">
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-snug group-hover:text-fuchsia-200 transition-colors">
+                <h3 className="text-2xl sm:text-[26px] font-black tracking-tight text-white leading-tight group-hover:text-fuchsia-200 transition-colors">
                   프로젝트<br />보고서
                 </h3>
-                <p className="text-xs font-semibold text-fuchsia-300/80 mt-2">
-                  대학·협회별 강좌 현황
-                </p>
               </div>
 
               <div className="pt-2 border-t border-fuchsia-900/40 flex items-center justify-between text-[11px] text-fuchsia-300 font-semibold">
-                <span>진행 강좌</span>
-                <span className="font-mono text-white font-bold">{projects.length}개 기관</span>
+                <span>진행 프로젝트</span>
+                <span className="font-mono text-white font-bold">{projects.length}개 강좌</span>
               </div>
             </div>
 
@@ -363,22 +354,19 @@ export const IntranetPortalHome: React.FC<IntranetPortalHomeProps> = ({
               className="relative aspect-square rounded-2xl bg-white text-slate-900 p-6 flex flex-col justify-between shadow-2xl hover:scale-[1.02] active:scale-[0.99] transition-all cursor-pointer group border-2 border-transparent hover:border-fuchsia-500/30"
             >
               {/* Corner Magenta Plus Badge */}
-              <div className="self-end w-7 h-7 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/30 transition-transform group-hover:scale-110">
+              <div className="self-end w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/30 transition-transform group-hover:scale-110">
                 <Plus className="w-4 h-4 stroke-[3]" />
               </div>
 
-              {/* Centered Large Bold Text */}
+              {/* Centered Large Bold Text - Pretendard Black */}
               <div className="my-auto text-center py-2">
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-950 leading-snug">
+                <h3 className="text-2xl sm:text-[26px] font-black tracking-tight text-slate-950 leading-tight">
                   새로운<br />서비스
                 </h3>
-                <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200">
-                  + 사내 툴 추가하기
-                </span>
               </div>
 
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-bold text-slate-500">
-                <span>연동 툴 수</span>
+                <span>등록된 사내 툴</span>
                 <span className="text-indigo-600 font-mono font-black">{internalTools.length}개</span>
               </div>
             </div>
@@ -388,29 +376,26 @@ export const IntranetPortalHome: React.FC<IntranetPortalHomeProps> = ({
           {/* ================= COLUMN 4 ================= */}
           <div className="flex flex-col gap-4 sm:gap-5">
             
-            {/* Top: Neon Outlined Card 3 (Exact match to "채용 허브" / AI Subtitle Hub) */}
+            {/* Top: Neon Outlined Card 3 (Exact match to "채용 허브") */}
             <div
-              onClick={() => setActiveModal('handbook')}
+              onClick={() => setActiveModal('recruitment')}
               className="relative aspect-square rounded-2xl border-2 border-fuchsia-500/85 hover:border-pink-400 bg-slate-950/45 backdrop-blur-md p-6 flex flex-col justify-between text-white shadow-xl shadow-fuchsia-500/10 hover:shadow-fuchsia-500/20 hover:scale-[1.02] active:scale-[0.99] transition-all cursor-pointer group"
             >
               {/* Corner Magenta Plus Badge */}
-              <div className="self-end w-7 h-7 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/40 transition-transform group-hover:scale-110">
+              <div className="self-end w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/40 transition-transform group-hover:scale-110">
                 <Plus className="w-4 h-4 stroke-[3]" />
               </div>
 
-              {/* Centered Large Bold Text */}
+              {/* Centered Large Bold Text - Pretendard Black */}
               <div className="my-auto text-center py-2">
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-snug group-hover:text-fuchsia-200 transition-colors">
-                  직원<br />핸드북
+                <h3 className="text-2xl sm:text-[26px] font-black tracking-tight text-white leading-tight group-hover:text-fuchsia-200 transition-colors">
+                  채용<br />허브
                 </h3>
-                <p className="text-xs font-semibold text-fuchsia-300/80 mt-2">
-                  사내 규정 및 검수 가이드
-                </p>
               </div>
 
               <div className="pt-2 border-t border-fuchsia-900/40 flex items-center justify-between text-[11px] text-fuchsia-300 font-semibold">
-                <span>가이드라인</span>
-                <span className="font-mono text-white font-bold">2026 최신판</span>
+                <span>채용 공고</span>
+                <span className="font-mono text-white font-bold">상시 진행중</span>
               </div>
             </div>
 
@@ -420,23 +405,20 @@ export const IntranetPortalHome: React.FC<IntranetPortalHomeProps> = ({
               className="relative aspect-square rounded-2xl bg-white text-slate-900 p-6 flex flex-col justify-between shadow-2xl hover:scale-[1.02] active:scale-[0.99] transition-all cursor-pointer group"
             >
               {/* Corner Magenta Plus Badge */}
-              <div className="self-end w-7 h-7 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/30 transition-transform group-hover:scale-110">
+              <div className="self-end w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-fuchsia-600 group-hover:bg-fuchsia-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/30 transition-transform group-hover:scale-110">
                 <Plus className="w-4 h-4 stroke-[3]" />
               </div>
 
-              {/* Centered Large Bold Text */}
+              {/* Centered Large Bold Text - Pretendard Black */}
               <div className="my-auto text-center py-2">
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-950 leading-snug">
+                <h3 className="text-2xl sm:text-[26px] font-black tracking-tight text-slate-950 leading-tight">
                   사내<br />문화
                 </h3>
-                <p className="text-xs font-semibold text-slate-500 mt-2">
-                  소통 및 복지 프로그램
-                </p>
               </div>
 
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-bold text-slate-500">
-                <span>공지사항</span>
-                <span className="text-fuchsia-600 font-mono font-bold">NEW 3건</span>
+                <span>복지 및 행사</span>
+                <span className="text-fuchsia-600 font-mono font-bold">2026 공지</span>
               </div>
             </div>
 
@@ -720,6 +702,44 @@ export const IntranetPortalHome: React.FC<IntranetPortalHomeProps> = ({
             </div>
             <button onClick={() => setActiveModal(null)} className="w-full py-2 bg-fuchsia-600 hover:bg-fuchsia-500 rounded-lg text-xs font-bold">
               확인
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 7. 채용 허브 모달 (Matching '채용 허브' card) */}
+      {activeModal === 'recruitment' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-fuchsia-500/40 rounded-2xl shadow-2xl overflow-hidden text-white p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-fuchsia-600 flex items-center justify-center text-white">
+                  <Users className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-white">WHOMEDIA 채용 허브</h3>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="py-4 space-y-3 text-xs text-slate-300">
+              <div className="p-3 bg-slate-800/80 border border-slate-700 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-white text-sm">교육 영상 전문 검수 및 모니터링 매니저</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30">상시 채용</span>
+                </div>
+                <p className="text-slate-400 leading-relaxed">대학 및 공공기관 e-러닝 콘텐츠 품질 검수, 음성/자막 싱크 및 오타 검수 담당.</p>
+              </div>
+              <div className="p-3 bg-slate-800/80 border border-slate-700 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-white text-sm">AI 영상 프로세싱 & 풀스택 엔지니어</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">경력</span>
+                </div>
+                <p className="text-slate-400 leading-relaxed">Gemini 멀티모달 자막 생성 파이프라인 최적화 및 사내 생산성 도구 개발.</p>
+              </div>
+            </div>
+            <button onClick={() => setActiveModal(null)} className="w-full py-2 bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 rounded-lg text-xs font-bold text-white">
+              닫기
             </button>
           </div>
         </div>

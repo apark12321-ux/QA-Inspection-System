@@ -91,7 +91,7 @@ function commentsFromFirestore(doc: FirestoreDocument): ReviewComment[] {
       role: (['ADMIN', 'REVIEWER', 'CREATOR', 'VIEWER'].includes(comment.role) ? comment.role : 'REVIEWER') as UserRole,
       timestampSeconds: Number.isFinite(seconds) ? seconds : 0,
       timestampFormatted: Number.isFinite(seconds) ? formatTime(seconds) : '--:--',
-      verdict: verdict === 'APPROVED' || verdict === 'REJECTED' ? verdict : 'PENDING',
+      verdict: (verdict === 'APPROVED' || verdict === 'REJECTED' ? verdict : 'PENDING') as ReviewComment['verdict'],
       content: String(comment.text || comment.content || ''),
       createdAt: asDateLabel(comment.createdAt)
     };
