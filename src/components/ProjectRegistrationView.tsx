@@ -6,7 +6,6 @@ import {
   Play,
   Upload,
   Check,
-  Globe,
   X
 } from 'lucide-react';
 
@@ -48,10 +47,6 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
   const [uploadProjId, setUploadProjId] = useState<string>(projects[0]?.id || '');
   const [uploadWeekFilter, setUploadWeekFilter] = useState<string>('none');
   const [uploadDefaultSession, setUploadDefaultSession] = useState<string>('');
-  const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
-  const [externalUrl, setExternalUrl] = useState('');
-  const [externalTitle, setExternalTitle] = useState('');
-  const [externalDuration, setExternalDuration] = useState('600');
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -152,37 +147,6 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
       .find(session => session.title === uploadDefaultSession.trim());
     const weekTitle = lesson?.weekTitle || project.weeks?.find(week => week.id === uploadWeekFilter)?.title || '주차 미지정';
     const weekId = Number(weekTitle.match(/\d+/)?.[0]) || 1;
-
-    if (uploadMode === 'url') {
-      if (!externalUrl.trim()) {
-        setUploadError('외부 영상 링크를 입력해 주세요.');
-        return;
-      }
-      try {
-        const url = new URL(externalUrl.trim());
-        if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http 또는 https 링크를 입력해 주세요.');
-        const title = externalTitle.trim() || uploadDefaultSession.trim() || '외부 영상';
-        const newVideo = addNewVideo({
-          projectId: project.id,
-          lessonId: lesson?.id,
-          weekId,
-          weekTitle,
-          sessionTitle: title,
-          fileName: title,
-          videoUrl: url.toString(),
-          duration: parseInt(externalDuration, 10) || 0,
-          fileSize: '외부 스트리밍'
-        });
-        setExternalUrl('');
-        setExternalTitle('');
-        setUploadError(null);
-        showToast('외부 영상 링크를 등록했습니다.');
-        setSelectedVideo(newVideo);
-      } catch (error) {
-        setUploadError(error instanceof Error ? error.message : '올바른 영상 링크를 입력해 주세요.');
-      }
-      return;
-    }
 
     if (uploadedFiles.length === 0) {
       setUploadError('업로드할 동영상 파일을 선택해 주세요.');
@@ -470,7 +434,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
               <h2 className="text-sm font-bold text-slate-900">동영상 업로드 (여러 개 동시)</h2>
             </div>
             <p className="text-xs text-slate-500 font-normal">
-              파일을 끌어다 놓거나 선택하세요. 동영상 파일 직접 업로드 및 외부 스트림 링크를 지원합니다.
+              파일을 끌어다 놓거나 선택하세요. 원본 영상 파일(MP4, WebM, MOV 등)을 저장하고 검수 차시에 연결합니다.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -515,117 +479,50 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                 </div>
               </div>
 
-              {/* Upload Mode Switcher: 파일 업로드 vs 외부 영상 링크 */}
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setUploadMode('file')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${
-                    uploadMode === 'file'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  동영상 파일 업로드
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUploadMode('url')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ${
-                    uploadMode === 'url'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <Globe className="w-3.5 h-3.5" />
-                  <span>외부 영상 스트림 링크</span>
-                </button>
-              </div>
+              {/* Dropzone for actual video files */}
+              <div
+                onDragOver={e => {
+                  e.preventDefault();
+                  setDragActive(true);
+                }}
+                onDragLeave={() => setDragActive(false)}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors ${
+                  dragActive
+                    ? 'border-blue-500 bg-blue-50/40'
+                    : 'border-slate-300 hover:border-slate-400 bg-slate-50/50'
+                }`}
+              >
+                <Upload className="w-6 h-6 mx-auto text-slate-400 mb-1" />
+                <p className="text-xs font-bold text-slate-700">
+                  동영상 파일을 이 영역에 끌어다 놓기
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  또는 클릭해서 선택 (여러 개 동시 선택 가능 mp4, webm, mov, m4v, mkv...)
+                </p>
 
-              {uploadMode === 'file' ? (
-                /* Dropzone matching screenshot */
-                <div
-                  onDragOver={e => {
-                    e.preventDefault();
-                    setDragActive(true);
+                <input
+                  type="file"
+                  multiple
+                  accept="video/*,.mkv"
+                  onChange={e => {
+                    if (e.target.files) {
+                      const newItems = Array.from(e.target.files).filter(file => file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name));
+                      setUploadedFiles(prev => [...prev, ...newItems]);
+                      setUploadError(newItems.length ? null : '지원하는 동영상 파일을 선택해 주세요.');
+                      e.target.value = '';
+                    }
                   }}
-                  onDragLeave={() => setDragActive(false)}
-                      onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors ${
-                    dragActive
-                      ? 'border-blue-500 bg-blue-50/40'
-                      : 'border-slate-300 hover:border-slate-400 bg-slate-50/50'
-                  }`}
+                  className="hidden"
+                  id="fileRegInput"
+                />
+                <label
+                  htmlFor="fileRegInput"
+                  className="inline-block mt-2 px-3 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-2xs"
                 >
-                  <Upload className="w-6 h-6 mx-auto text-slate-400 mb-1" />
-                  <p className="text-xs font-bold text-slate-700">
-                    동영상 파일을 이 영역에 끌어다 놓기
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    또는 클릭해서 선택 (여러 개 동시 선택 가능 mp4, webm, mov, m4v...)
-                  </p>
-
-                  <input
-                    type="file"
-                    multiple
-                    accept="video/*"
-                    onChange={e => {
-                      if (e.target.files) {
-                        const newItems = Array.from(e.target.files).filter(file => file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name));
-                        setUploadedFiles(prev => [...prev, ...newItems]);
-                        setUploadError(newItems.length ? null : '지원하는 동영상 파일을 선택해 주세요.');
-                        e.target.value = '';
-                      }
-                    }}
-                    className="hidden"
-                    id="fileRegInput"
-                  />
-                  <label
-                    htmlFor="fileRegInput"
-                    className="inline-block mt-2 px-3 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-2xs"
-                  >
-                    파일 찾아보기
-                  </label>
-                </div>
-              ) : (
-                /* External URL Input for Zero-Cost Streaming */
-                <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      외부 영상 링크 URL
-                    </label>
-                    <input
-                      type="text"
-                      value={externalUrl}
-                      onChange={e => setExternalUrl(e.target.value)}
-                      placeholder="https://www.youtube.com/watch?v=... 또는 vimeo.com/..., drive.google.com/..."
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-0.5">영상 제목</label>
-                      <input
-                        type="text"
-                        value={externalTitle}
-                        onChange={e => setExternalTitle(e.target.value)}
-                        placeholder="예) 1차시 ESG 마인드 특강"
-                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-0.5">영상 길이 (초)</label>
-                      <input
-                        type="number"
-                        value={externalDuration}
-                        onChange={e => setExternalDuration(e.target.value)}
-                        placeholder="600"
-                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
+                  파일 찾아보기
+                </label>
+              </div>
 
               {/* Action Buttons: [목록 비우기] [동영상 등록] */}
               <div className="flex items-center justify-between pt-2">
@@ -633,7 +530,6 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
                   type="button"
                   onClick={() => {
                     setUploadedFiles([]);
-                    setExternalUrl('');
                     setUploadError(null);
                   }}
                   className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold transition-colors"
@@ -704,7 +600,7 @@ export const ProjectRegistrationView: React.FC<ProjectRegistrationViewProps> = (
             </div>
 
             <div className="pt-3 text-[11px] text-slate-400">
-              동영상 원본은 AWS S3(edutem-video-review)에 저장됩니다.
+              동영상 원본은 고성능 스토리지(S3 및 브라우저 IndexedDB)에 안전하게 저장됩니다.
             </div>
           </div>
 

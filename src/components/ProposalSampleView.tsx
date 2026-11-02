@@ -31,52 +31,10 @@ interface ProposalProjectItem {
   sampleVideoTitles: string[];
 }
 
-const PROPOSAL_PROJECTS: ProposalProjectItem[] = [
-  {
-    id: 'proj-khcu',
-    name: '경희사이버대학교',
-    alias: 'khcu',
-    proposalTitle: '2026학년도 원격 정규 교육과정 콘텐츠 개발 사업 제안',
-    category: '1인강의형 전면 연출',
-    sampleVideoTitles: ['시니어재무컨설팅 (1인강의형 대표 샘플)', '세무실무적용사례 (1인강의형 대표 샘플)']
-  },
-  {
-    id: 'proj-inha',
-    name: '인하대학교',
-    alias: 'inha26',
-    proposalTitle: 'Bio Health ESG 및 오픈런 공개강좌 개발 사업 제안',
-    category: '스튜디오형 고화질 1080p',
-    sampleVideoTitles: ['디지털 전환(DX)과 일자리 환경 변화', 'Bio Health 산업의 ESG 실행과 사회공헌']
-  },
-  {
-    id: 'proj-foren',
-    name: '경찰수사연수원',
-    alias: '26foren04',
-    proposalTitle: '디지털포렌식 및 가상자산 수사 심화 교육과정 제작 제안',
-    category: '모션그래픽 및 3D 다이어그램',
-    sampleVideoTitles: ['2025년 불법 자금 규모', '중국어 기반 자금세탁 네트워크의 부상', 'CMLN이 파는 여섯 가지 상품']
-  },
-  {
-    id: 'proj-syu',
-    name: '삼육대학교',
-    alias: 'syu26',
-    proposalTitle: '스마트미래교육 SU-MOOC 디지털 리터러시 개발 제안',
-    category: '크로마키형 그래픽 합성',
-    sampleVideoTitles: ['생성형 AI를 활용한 상호작용 설계', '크로마키 합성 교육과정']
-  },
-  {
-    id: 'proj-bio-esg',
-    name: '대구보건대학교',
-    alias: 'dhc26',
-    proposalTitle: 'Bio Health 시대의 ESG와 지속 가능한 성장 콘텐츠 개발',
-    category: 'ESG 특화 교육과정',
-    sampleVideoTitles: ['ESG 마인드 없이는 성장도 없다', 'ESG와 기업의 사회적 책임', '지속가능경영 보고서 프레임워크']
-  }
-];
-
 export const ProposalSampleView: React.FC = () => {
   const {
     projects,
+    videos,
     setCurrentProjectSlug,
     setUserViewMode,
     language
@@ -85,13 +43,37 @@ export const ProposalSampleView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedAlias, setCopiedAlias] = useState<string | null>(null);
 
+  // Derive proposal projects dynamically from actual workspace projects
+  const proposalProjects: ProposalProjectItem[] = useMemo(() => {
+    return projects.map(p => {
+      const pVideos = videos.filter(v => v.projectId === p.id);
+      const sampleTitles = pVideos.length
+        ? pVideos.map(v => v.sessionTitle || v.fileName)
+        : (p.sessions?.length
+            ? p.sessions.map(s => s.title)
+            : ['원격 정규 교육과정 콘텐츠 샘플 영상']);
+      const category = p.sessions?.[0]?.title?.includes('1인강의')
+        ? '1인강의형 전면 연출'
+        : '원격 교육과정 고품질 영상';
+
+      return {
+        id: p.id,
+        name: p.name.includes(' ') ? p.name.split(' ')[0] : p.name,
+        alias: p.alias,
+        proposalTitle: p.name,
+        category,
+        sampleVideoTitles: sampleTitles
+      };
+    });
+  }, [projects, videos]);
+
   // Selected project for QR modal
   const [selectedForQr, setSelectedForQr] = useState<ProposalProjectItem | null>(null);
   const modalQrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Filter projects
   const filteredList = useMemo(() => {
-    return PROPOSAL_PROJECTS.filter(item => {
+    return proposalProjects.filter(item => {
       const q = searchQuery.toLowerCase().trim();
       if (!q) return true;
       return (
@@ -101,7 +83,7 @@ export const ProposalSampleView: React.FC = () => {
         item.category.toLowerCase().includes(q)
       );
     });
-  }, [searchQuery]);
+  }, [proposalProjects, searchQuery]);
 
   // Generate delivery link for a given project alias
   const getDeliveryUrl = (alias: string) => {
@@ -176,7 +158,7 @@ export const ProposalSampleView: React.FC = () => {
 
           <div className="flex items-center gap-2 shrink-0">
             <div className="text-xs font-semibold px-3 py-2 bg-slate-100 rounded-lg text-slate-700">
-              제안 프로젝트: <strong>{PROPOSAL_PROJECTS.length}개</strong>
+              제안 프로젝트: <strong>{proposalProjects.length}개</strong>
             </div>
           </div>
         </div>

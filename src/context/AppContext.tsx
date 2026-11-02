@@ -159,20 +159,23 @@ function subtitlesToVtt(subtitles: SubtitleEntry[], language: 'ko' | 'en'): stri
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load saved projects or initial
-  // Load saved projects (only non-competitor projects)
+  // Legacy mock institutions to exclude from storage
+  const LEGACY_EXCLUDED_ALIASES = new Set(['dhc26', 'inha26', 'police', 'sample', 'syu26', '26foren04']);
+  const LEGACY_EXCLUDED_IDS = new Set(['proj-dhc', 'proj-inha', 'proj-police', 'proj-syu', 'proj-foren', 'proj-bio-esg']);
+
+  // Load saved projects (preserves 경희사이버대학교 and any user-added projects)
   const [projects, setProjects] = useState<ProjectItem[]>(() => {
     if (firebaseConfigured) return [];
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
       if (saved) {
         const parsed = (JSON.parse(saved) as ProjectItem[])
-          .filter(p => p.alias === 'khcu' || p.id === 'proj-khcu')
-          .map(p => ({
-            ...p,
-            videoCount: 0,
-            sessions: p.sessions?.map(s => ({ ...s, videoCount: 0, videos: [] })) || []
-          }));
+          .filter(p => !LEGACY_EXCLUDED_ALIASES.has((p.alias || '').toLowerCase()) && !LEGACY_EXCLUDED_IDS.has(p.id));
         if (parsed.length > 0) {
+          // Ensure 경희사이버대학교 is included
+          if (!parsed.some(p => p.alias === 'khcu' || p.id === 'proj-khcu')) {
+            parsed.unshift(INITIAL_PROJECTS[0]);
+          }
           localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(parsed));
           return parsed;
         }
@@ -452,6 +455,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.NOTIFS, JSON.stringify(notifications));
   }, [notifications]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
+  }, [projects]);
 
   // Keep selectedVideo in sync when videos array updates
   useEffect(() => {
@@ -769,6 +776,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setVideos(prev => [newVideo, ...prev]);
+    if (newVideo.projectId) {
+      setProjects(prev =>
+        prev.map(proj => {
+          if (proj.id !== newVideo.projectId) return proj;
+          return {
+            ...proj,
+            videoCount: (proj.videoCount || 0) + 1,
+            sessions: proj.sessions?.map(s => {
+              if (s.id === newVideo.lessonId || s.title === newVideo.sessionTitle) {
+                return {
+                  ...s,
+                  videoCount: (s.videoCount || 0) + 1,
+                  videos: [newVideo, ...(s.videos || [])]
+                };
+              }
+              return s;
+            }) || []
+          };
+        })
+      );
+    }
     if (firebaseConfigured) {
       void saveFirestoreDocument('videos', newVideo.id, {
         projectId: newVideo.projectId || '',
@@ -797,6 +825,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteVideo = (videoId: string) => {
     const video = videos.find(v => v.id === videoId);
     setVideos(prev => prev.filter(v => v.id !== videoId));
+    if (video?.projectId) {
+      setProjects(prev =>
+        prev.map(proj => {
+          if (proj.id !== video.projectId) return proj;
+          return {
+            ...proj,
+            videoCount: Math.max(0, (proj.videoCount || 0) - 1),
+            sessions: proj.sessions?.map(s => ({
+              ...s,
+              videoCount: Math.max(0, (s.videoCount || 0) - 1),
+              videos: (s.videos || []).filter(v => v.id !== videoId)
+            })) || []
+          };
+        })
+      );
+    }
     if (firebaseConfigured) {
       void deleteFirestoreDocument('videos', videoId).catch(error => console.error('영상 정보를 삭제하지 못했습니다:', error));
       if (video?.s3Key) void deleteStoredVideo(video.s3Key).catch(error => console.error('저장된 영상 원본을 삭제하지 못했습니다:', error));
