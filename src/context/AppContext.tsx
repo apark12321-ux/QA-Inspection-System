@@ -9,7 +9,8 @@ import {
   AuditLog,
   NotificationItem,
   ProjectItem,
-  VideoAiAnalysis
+  VideoAiAnalysis,
+  ProposalSampleItem
 } from '../types';
 import {
   INITIAL_VIDEOS,
@@ -17,6 +18,7 @@ import {
   INITIAL_NOTIFICATIONS
 } from '../data/initialData';
 import { INITIAL_PROJECTS } from '../data/projectData';
+import { INITIAL_PROPOSAL_SAMPLES } from '../data/proposalSampleData';
 import { firebaseConfigured } from '../utils/firebaseClient';
 import { subscribeToReviewData, subscribeToSharedVideo, newFirestoreId, saveFirestoreDocument, deleteFirestoreDocument, deleteFirestoreBatch } from '../utils/firebaseStore';
 import { mapFirestoreSnapshot, statusToFirestore, toFirestoreComment } from '../utils/firestoreAdapter';
@@ -87,13 +89,17 @@ interface AppContextType {
   deleteProject: (id: string) => void;
   addWeeksToProject: (projectId: string, weekNames: string[]) => void;
   addSessionsToProject: (projectId: string, weekId: string | null, sessionNames: string[]) => void;
-  userViewMode: 'registration' | 'review';
-  setUserViewMode: (mode: 'registration' | 'review') => void;
+  userViewMode: 'registration' | 'review' | 'proposal';
+  setUserViewMode: (mode: 'registration' | 'review' | 'proposal') => void;
   currentProjectSlug: string | null;
   setCurrentProjectSlug: (slug: string | null) => void;
   activeProject: ProjectItem | null;
   isCloudSynced: boolean;
   syncWithBackend: () => Promise<void>;
+  proposalSamples: ProposalSampleItem[];
+  addProposalSample: (sample: Omit<ProposalSampleItem, 'id' | 'createdAt'>) => void;
+  deleteProposalSample: (id: string) => void;
+  addVideoToProposalSamples: (video: VideoSession, institution?: string, lectureType?: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -106,7 +112,8 @@ const STORAGE_KEYS = {
   LANG: 'video_review_lang_v1',
   CURRENT_ROLE: 'video_review_role_v1',
   PROJECTS: 'video_review_projects_v1',
-  USER_VIEW_MODE: 'video_review_view_mode_v1'
+  USER_VIEW_MODE: 'video_review_view_mode_v1',
+  PROPOSAL_SAMPLES: 'video_review_proposal_samples_v1'
 };
 
 const DEMO_PERSON_NAMES = new Set(['이영희', '박제작', '김관리', '최참관']);
@@ -150,17 +157,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return firebaseConfigured ? [] : INITIAL_PROJECTS;
   });
 
-  const [userViewMode, setUserViewModeState] = useState<'registration' | 'review'>(() => {
+  const [userViewMode, setUserViewModeState] = useState<'registration' | 'review' | 'proposal'>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.USER_VIEW_MODE);
-      if (saved === 'registration' || saved === 'review') return saved;
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'proposal' || params.get('view') === 'sample') return 'proposal';
+      const saved = localStorage.getItem(STORAGE_KEYS.USER_VIEW_MODE) as 'registration' | 'review' | 'proposal';
+      if (saved === 'registration' || saved === 'review' || saved === 'proposal') return saved;
     } catch (e) {
       console.error(e);
     }
     return 'review'; // Defaults directly to video inspection workspace
   });
 
-  const setUserViewMode = (mode: 'registration' | 'review') => {
+  const setUserViewMode = (mode: 'registration' | 'review' | 'proposal') => {
     setUserViewModeState(mode);
     localStorage.setItem(STORAGE_KEYS.USER_VIEW_MODE, mode);
   };
@@ -284,7 +293,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           p.alias.toLowerCase() === currentProjectSlug.toLowerCase() ||
           p.id.toLowerCase() === currentProjectSlug.toLowerCase()
       ) || null
-    : null;
+    : projects.find(p => p.alias === 'dhc26' || p.id === 'proj-bio-esg') || projects[0] || null;
 
   useEffect(() => {
     if (!firebaseConfigured) return;
@@ -859,6 +868,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('SESSIONS_ADD', projectId, `${newSessions.length}개 차시 등록`);
   };
 
+  // Proposal Samples State for Proposals & Document Evaluations
+  const [proposalSamples, setProposalSamples] = useState<ProposalSampleItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.PROPOSAL_SAMPLES);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_PROPOSAL_SAMPLES;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PROPOSAL_SAMPLES, JSON.stringify(proposalSamples));
+  }, [proposalSamples]);
+
+  const addProposalSample = (sample: Omit<ProposalSampleItem, 'id' | 'createdAt'>) => {
+    const now = new Date();
+    const formatted = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+    const newSample: ProposalSampleItem = {
+      ...sample,
+      id: `sample-${Date.now()}`,
+      createdAt: formatted
+    };
+    setProposalSamples(prev => [newSample, ...prev]);
+    addAuditLog('PROPOSAL_SAMPLE_ADD', newSample.title, `제안샘플 등록: ${newSample.institution} (${newSample.lectureType})`);
+  };
+
+  const deleteProposalSample = (id: string) => {
+    const item = proposalSamples.find(s => s.id === id);
+    setProposalSamples(prev => prev.filter(s => s.id !== id));
+    addAuditLog('PROPOSAL_SAMPLE_DELETE', item?.title || id, '제안샘플 항목 삭제');
+  };
+
+  const addVideoToProposalSamples = (video: VideoSession, institution?: string, lectureType?: string) => {
+    const project = projects.find(p => p.id === video.projectId);
+    const inst = institution || project?.name?.split('[')[0]?.trim() || project?.name?.split('(')[0]?.trim() || '온라인 교육과정';
+    addProposalSample({
+      title: video.sessionTitle || video.fileName,
+      institution: inst,
+      lectureType: lectureType || '1인강의형',
+      descriptionBullets: [
+        `${video.weekTitle || '주요 강좌'} 기반 실무 전문 교육 콘텐츠`,
+        '1080p 고화질 영상 촬영 및 전문 교수자 연출',
+        '학습 몰입도를 높이는 시각자료 및 모바일 최적화'
+      ],
+      videoUrl: video.videoUrl,
+      instructor: video.reviewerName || '전문 교수진',
+      duration: video.duration,
+      sourceVideoId: video.id
+    });
+  };
+
   // Sync projects to storage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
@@ -915,7 +976,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentProjectSlug,
         activeProject,
         isCloudSynced,
-        syncWithBackend
+        syncWithBackend,
+        proposalSamples,
+        addProposalSample,
+        deleteProposalSample,
+        addVideoToProposalSamples
       }}
     >
       {children}

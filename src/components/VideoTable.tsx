@@ -25,12 +25,15 @@ export const VideoTable: React.FC = () => {
     openShareModal,
     currentProjectSlug,
     setCurrentProjectSlug,
-    activeProject
+    activeProject,
+    addVideoToProposalSamples,
+    setUserViewMode
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | ReviewStatus>('ALL');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [addedSampleId, setAddedSampleId] = useState<string | null>(null);
 
   const t = translations[language];
 
@@ -42,6 +45,8 @@ export const VideoTable: React.FC = () => {
       );
       if (match) return match;
     }
+    const dhcProject = projects.find(p => p.alias === 'dhc26' || p.id === 'proj-bio-esg');
+    if (dhcProject) return dhcProject;
     return projects[0];
   }, [activeProject, currentProjectSlug, projects]);
 
@@ -146,26 +151,18 @@ export const VideoTable: React.FC = () => {
           </div>
         </div>
 
-        {/* Project Switcher Dropdown & 1-Click Link Copy */}
+        {/* Project Badge & 1-Click Link Copy (No other companies exposed) */}
         <div className="flex items-center gap-2 flex-wrap">
-          <select
-            value={selectedProjectAlias}
-            onChange={e => handleSelectProject(e.target.value)}
-            className="px-3 py-2 bg-slate-50 hover:bg-white border border-slate-300 rounded-lg text-xs sm:text-sm font-semibold text-slate-800 transition-colors focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[280px] truncate"
-          >
-            {projects.length === 0 && <option value="">{language === 'ko' ? '등록된 프로젝트 없음' : 'No projects registered'}</option>}
-            {projects.map(p => (
-              <option key={p.id} value={p.alias}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-100/90 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
+            <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+            <span className="font-mono text-slate-900">/{selectedProjectAlias || 'dhc26'}</span>
+          </div>
 
           <button
             type="button"
             onClick={handleCopyShareLink}
             disabled={!selectedProjectAlias}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs sm:text-sm font-semibold transition-all shadow-2xs active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs sm:text-sm font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer"
             title={t.shareLink}
           >
             {copiedLink ? (
@@ -176,9 +173,19 @@ export const VideoTable: React.FC = () => {
             ) : (
               <>
                 <LinkIcon className="w-4 h-4 text-blue-600" />
-                <span>{language === 'ko' ? '링크 복사' : 'Copy Link'}</span>
+                <span>{language === 'ko' ? '검수 링크 복사' : 'Copy Link'}</span>
               </>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setUserViewMode('proposal')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs sm:text-sm font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer"
+            title={language === 'ko' ? '제안샘플 사이트 및 QR·URL 도구 열기' : 'Open Proposal Sample Showcase'}
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>{language === 'ko' ? '제안샘플 사이트' : 'Proposal Samples'}</span>
           </button>
         </div>
       </div>
@@ -312,16 +319,41 @@ export const VideoTable: React.FC = () => {
                       )}
                     </td>
 
-                    {/* 재생 버튼 */}
+                    {/* 재생 및 제안샘플 등록 버튼 */}
                     <td className="py-3.5 px-4 sm:px-6 text-right align-middle whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedVideo(video)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg text-xs sm:text-sm shadow-2xs transition-all transform active:scale-95 cursor-pointer"
-                      >
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        <span>{t.playButton}</span>
-                      </button>
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addVideoToProposalSamples(video, displayedProject?.name);
+                            setAddedSampleId(video.id);
+                            setTimeout(() => setAddedSampleId(null), 2500);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-2 bg-slate-100 hover:bg-sky-50 active:bg-sky-100 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+                          title={language === 'ko' ? '제안샘플 사이트에 이 강좌를 카드로 즉시 추가' : 'Add to Proposal Samples'}
+                        >
+                          {addedSampleId === video.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="text-emerald-700 font-bold">{language === 'ko' ? '샘플 등록됨' : 'Added!'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                              <span>{language === 'ko' ? '제안샘플 등록' : 'Add Sample'}</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedVideo(video)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg text-xs sm:text-sm shadow-2xs transition-all transform active:scale-95 cursor-pointer"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>{t.playButton}</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

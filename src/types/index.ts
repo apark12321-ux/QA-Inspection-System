@@ -126,3 +126,17 @@ export interface UserAccount {
   status: 'active' | 'suspended';
   lastActive: string;
 }
+
+export interface ProposalSampleItem {
+  id: string;
+  title: string;
+  institution: string;
+  lectureType: string; // e.g. "1인강의형", "크로마키형", "스튜디오형", "대담형", "모션그래픽형"
+  descriptionBullets: string[];
+  thumbnailUrl?: string;
+  videoUrl: string;
+  instructor?: string;
+  duration?: number;
+  sourceVideoId?: string;
+  createdAt: string;
+}

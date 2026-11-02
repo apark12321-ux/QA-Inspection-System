@@ -6,6 +6,7 @@ import { ReviewModal } from './components/ReviewModal';
 import { UploadModal } from './components/UploadModal';
 import { ShareModal } from './components/ShareModal';
 import { ProjectRegistrationView } from './components/ProjectRegistrationView';
+import { ProposalSampleView } from './components/ProposalSampleView';
 import { AdminLayout } from './components/AdminLayout';
 import { WhomediaLogo } from './components/WhomediaLogo';
 import {
@@ -16,6 +17,7 @@ import {
   FolderKanban,
   Globe,
   LayoutDashboard,
+  Sparkles,
   Upload,
   Wifi,
   WifiOff,
@@ -41,7 +43,8 @@ const RootContent: React.FC = () => {
     setSelectedVideo,
     activeProject,
     currentProjectSlug,
-    setCurrentProjectSlug
+    setCurrentProjectSlug,
+    proposalSamples
   } = useApp();
 
   const [notifOpen, setNotifOpen] = useState(false);
@@ -49,7 +52,12 @@ const RootContent: React.FC = () => {
   const [shareHadOpened, setShareHadOpened] = useState(false);
   const t = translations[language];
   const unreadCount = notifications.filter(item => !item.read).length;
-  const selectedAlias = activeProject?.alias || currentProjectSlug || '';
+  const currentProject =
+    activeProject ||
+    projects.find(p => p.alias.toLowerCase() === (currentProjectSlug || 'dhc26').toLowerCase()) ||
+    projects.find(p => p.alias === 'dhc26') ||
+    projects[0];
+  const selectedAlias = currentProject?.alias || '';
 
   const sharedVideoId = new URLSearchParams(window.location.search).get('v');
   const sharedVideo = sharedVideoId ? videos.find(video => video.id === sharedVideoId) : undefined;
@@ -118,6 +126,10 @@ const RootContent: React.FC = () => {
     setPortalMode('user');
     setUserViewMode('review');
   };
+  const openProposal = () => {
+    setPortalMode('user');
+    setUserViewMode('proposal');
+  };
   const openRegistration = () => {
     setPortalMode('user');
     setUserViewMode('registration');
@@ -155,6 +167,15 @@ const RootContent: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  onClick={openProposal}
+                  className={'sidebar-link' + (userViewMode === 'proposal' ? ' active' : '')}
+                >
+                  <Sparkles size={17} />
+                  <span>{language === 'ko' ? '제안샘플 사이트' : 'Proposal samples'}</span>
+                  <span className="sidebar-link-count">{proposalSamples.length}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={openRegistration}
                   className={'sidebar-link' + (userViewMode === 'registration' ? ' active' : '')}
                 >
@@ -171,35 +192,24 @@ const RootContent: React.FC = () => {
               <div className="sidebar-section project-nav-section">
                 <div className="sidebar-section-heading">
                   <div className="sidebar-section-label">{language === 'ko' ? '내 프로젝트' : 'MY PROJECTS'}</div>
-                  <span className="sidebar-section-total">{projects.length}</span>
+                  <span className="sidebar-section-total">{currentProject ? 1 : 0}</span>
                 </div>
                 <div className="project-nav-list">
-                  {projects.slice(0, 7).map(project => {
-                    const isSelected = selectedAlias.toLowerCase() === project.alias.toLowerCase();
-                    const count = projectVideoCount(project.id);
-                    return (
-                      <button
-                        type="button"
-                        key={project.id}
-                        onClick={() => {
-                          setCurrentProjectSlug(project.alias);
-                          setUserViewMode('review');
-                        }}
-                        className={'project-nav-item' + (isSelected ? ' active' : '')}
-                        title={project.name}
-                      >
-                        <span className="project-nav-dot" />
-                        <span className="project-nav-name">{project.name}</span>
-                        {count > 0 && <span className="project-nav-count">{count}</span>}
-                      </button>
-                    );
-                  })}
+                  {currentProject && (
+                    <button
+                      type="button"
+                      key={currentProject.id}
+                      className="project-nav-item active"
+                      title={currentProject.name}
+                    >
+                      <span className="project-nav-dot" />
+                      <span className="project-nav-name">{currentProject.name}</span>
+                      {projectVideoCount(currentProject.id) > 0 && (
+                        <span className="project-nav-count">{projectVideoCount(currentProject.id)}</span>
+                      )}
+                    </button>
+                  )}
                 </div>
-                {projects.length > 7 && (
-                  <button type="button" className="sidebar-more" onClick={openRegistration}>
-                    {language === 'ko' ? '모든 프로젝트 보기' : 'View all projects'}
-                  </button>
-                )}
               </div>
             </div>
 
@@ -223,6 +233,8 @@ const RootContent: React.FC = () => {
                 <strong>
                   {userViewMode === 'registration'
                     ? (language === 'ko' ? '프로젝트 관리' : 'Project management')
+                    : userViewMode === 'proposal'
+                    ? (language === 'ko' ? '제안샘플 사이트 (서류평가 QR·URL)' : 'Proposal samples (QR & URL)')
                     : (language === 'ko' ? '동영상 강의 검수' : 'Video review')}
                 </strong>
               </div>
@@ -297,7 +309,13 @@ const RootContent: React.FC = () => {
             </header>
 
             <main className="workspace-content">
-              {userViewMode === 'registration' ? <ProjectRegistrationView /> : <VideoTable />}
+              {userViewMode === 'registration' ? (
+                <ProjectRegistrationView />
+              ) : userViewMode === 'proposal' ? (
+                <ProposalSampleView />
+              ) : (
+                <VideoTable />
+              )}
             </main>
 
             <footer className="workspace-footer">
