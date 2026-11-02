@@ -57,8 +57,7 @@ const RootContent: React.FC = () => {
   const unreadCount = notifications.filter(item => !item.read).length;
   const currentProject =
     activeProject ||
-    projects.find(p => p.alias.toLowerCase() === (currentProjectSlug || 'dhc26').toLowerCase()) ||
-    projects.find(p => p.alias === 'dhc26') ||
+    projects.find(p => p.alias.toLowerCase() === (currentProjectSlug || 'khcu').toLowerCase()) ||
     projects[0];
   const selectedAlias = currentProject?.alias || '';
 

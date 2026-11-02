@@ -159,23 +159,28 @@ function subtitlesToVtt(subtitles: SubtitleEntry[], language: 'ko' | 'en'): stri
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load saved projects or initial
+  // Load saved projects (only non-competitor projects)
   const [projects, setProjects] = useState<ProjectItem[]>(() => {
     if (firebaseConfigured) return [];
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
       if (saved) {
-        const parsed = JSON.parse(saved) as ProjectItem[];
-        const hasKhcu = parsed.some(p => p.id === 'proj-khcu' || p.alias === 'khcu');
-        if (!hasKhcu) {
-          const khcuProject = INITIAL_PROJECTS.find(p => p.id === 'proj-khcu');
-          if (khcuProject) return [khcuProject, ...parsed];
+        const parsed = (JSON.parse(saved) as ProjectItem[])
+          .filter(p => p.alias === 'khcu' || p.id === 'proj-khcu')
+          .map(p => ({
+            ...p,
+            videoCount: 0,
+            sessions: p.sessions?.map(s => ({ ...s, videoCount: 0, videos: [] })) || []
+          }));
+        if (parsed.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(parsed));
+          return parsed;
         }
-        return parsed;
       }
     } catch (e) {
       console.error(e);
     }
-    return firebaseConfigured ? [] : INITIAL_PROJECTS;
+    return INITIAL_PROJECTS;
   });
 
   const [userViewMode, setUserViewModeState] = useState<'registration' | 'review' | 'proposal'>(() => {
@@ -196,24 +201,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.USER_VIEW_MODE, mode);
   };
 
-  // Load saved videos or initial
+  // Load saved videos (only real user-uploaded videos - all fictional sample videos deleted)
   const [videos, setVideos] = useState<VideoSession[]>(() => {
     if (firebaseConfigured) return [];
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
       if (saved) {
-        const parsed = (JSON.parse(saved) as VideoSession[]).map(removeDemoPeopleFromVideo);
-        const hasKhcu = parsed.some(v => v.id === 'khcu_senior_01');
-        if (!hasKhcu) {
-          const khcuVideos = INITIAL_VIDEOS.filter(v => v.projectId === 'proj-khcu');
-          return [...khcuVideos, ...parsed];
-        }
+        const parsed = (JSON.parse(saved) as VideoSession[])
+          .map(removeDemoPeopleFromVideo)
+          .filter(v => {
+            // 허구의 목데이터 영상은 전면 삭제
+            if (
+              v.id.startsWith('khcu_') ||
+              v.id.startsWith('dhc26_') ||
+              v.id.startsWith('inha26_') ||
+              v.id.startsWith('police_') ||
+              v.id.startsWith('26story')
+            ) {
+              return false;
+            }
+            if (v.videoUrl && v.videoUrl.includes('commondatastorage.googleapis.com/gtv-videos-bucket/sample/')) {
+              return false;
+            }
+            return Boolean(v.s3Key || v.sizeBytes || v.sourceType === 'direct');
+          });
+        localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(parsed));
         return parsed;
       }
     } catch (e) {
       console.error(e);
     }
-    return firebaseConfigured ? [] : INITIAL_VIDEOS;
+    return [];
   });
 
   const [users, setUsers] = useState<UserAccount[]>([]);
@@ -365,7 +383,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           p.id.toLowerCase() === currentProjectSlug.toLowerCase()
       ) || null
     : projects.find(p => p.alias === 'khcu' || p.id === 'proj-khcu') ||
-      projects.find(p => p.alias === 'dhc26' || p.id === 'proj-bio-esg') ||
       projects[0] || null;
 
   useEffect(() => {

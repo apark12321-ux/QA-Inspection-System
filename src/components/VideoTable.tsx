@@ -58,27 +58,17 @@ export const VideoTable: React.FC = () => {
       );
       if (match) return match;
     }
-    const dhcProject = projects.find(p => p.alias === 'dhc26' || p.id === 'proj-bio-esg');
-    if (dhcProject) return dhcProject;
+    const khcuProject = projects.find(p => p.alias === 'khcu' || p.id === 'proj-khcu');
+    if (khcuProject) return khcuProject;
     return projects[0];
   }, [activeProject, currentProjectSlug, projects]);
 
   const selectedProjectAlias = displayedProject?.alias || '';
 
-  // Get videos for currently displayed project
+  // Get videos for currently displayed project (only real uploaded videos)
   const projectVideos = useMemo(() => {
     if (!displayedProject) return videos;
-
-    const byProjectId = videos.filter(video => video.projectId === displayedProject.id);
-    if (byProjectId.length > 0) return byProjectId;
-
-    // If project has embedded sessions with videos
-    if (displayedProject.sessions && displayedProject.sessions.length > 0) {
-      const sessVideos = displayedProject.sessions.flatMap(s => s.videos || []);
-      if (sessVideos.length > 0) return sessVideos;
-    }
-
-    return [];
+    return videos.filter(video => video.projectId === displayedProject.id);
   }, [displayedProject, videos]);
 
   const filteredVideos = useMemo(() => {
@@ -310,7 +300,23 @@ export const VideoTable: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredVideos.length === 0 ? (
+              {projectVideos.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center text-slate-400">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                      <Play className="w-5 h-5 ml-0.5" />
+                    </div>
+                    <p className="text-base font-bold text-slate-700">
+                      {language === 'ko' ? '등록된 실제 강의 영상이 없습니다.' : 'No uploaded videos found.'}
+                    </p>
+                    <p className="text-xs sm:text-sm mt-1 text-slate-400 max-w-md mx-auto leading-relaxed">
+                      {isAdminMode
+                        ? (language === 'ko' ? '상단의 [동영상 업로드] 버튼을 클릭하여 실제 검수할 강의 영상 파일을 등록해 주세요.' : 'Click [Upload Video] above to upload lecture videos.')
+                        : (language === 'ko' ? '강의 영상이 업로드되면 이 화면에서 바로 재생 및 품질 검수를 진행할 수 있습니다.' : 'Videos will appear here for review once uploaded.')}
+                    </p>
+                  </td>
+                </tr>
+              ) : filteredVideos.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400">
                     <p className="text-base">{language === 'ko' ? '검색 조건과 일치하는 동영상이 없습니다.' : 'No videos match the search criteria.'}</p>
