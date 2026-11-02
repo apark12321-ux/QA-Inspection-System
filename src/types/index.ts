@@ -140,3 +140,15 @@ export interface ProposalSampleItem {
   sourceVideoId?: string;
   createdAt: string;
 }
+
+export interface ProposalClientPackage {
+  id: string;
+  name: string; // e.g. "경희사이버대학교"
+  slug: string; // e.g. "khcu"
+  proposalTitle: string; // e.g. "2026학년도 원격 정규 교육과정 콘텐츠 개발 사업 제안"
+  assignedSampleIds: string[]; // IDs of samples visible to this proposal client
+  customNotice?: string;
+  contactPerson?: string;
+  createdAt: string;
+}
+

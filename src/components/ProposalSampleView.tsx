@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { useApp } from '../context/AppContext';
-import { ProposalSampleItem } from '../types';
+import { ProposalSampleItem, ProposalClientPackage } from '../types';
+import { ProposalClientView } from './ProposalClientView';
 import {
   Sparkles,
   Download,
@@ -17,31 +18,41 @@ import {
   Layers,
   X,
   FileCheck,
-  Info
+  Info,
+  ShieldCheck,
+  Lock,
+  Eye,
+  SlidersHorizontal,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
-const LECTURE_TYPES = [
-  '전체',
-  '1인강의형',
-  '스튜디오형',
-  '크로마키형',
-  '대담형',
-  '모션그래픽형'
-] as const;
-
 export const ProposalSampleView: React.FC = () => {
-  const { proposalSamples, addProposalSample, deleteProposalSample, language } = useApp();
+  const {
+    proposalSamples,
+    addProposalSample,
+    deleteProposalSample,
+    proposalClients,
+    selectedProposalClientId,
+    setSelectedProposalClientId,
+    addProposalClient,
+    deleteProposalClient,
+    toggleSampleInProposalClient,
+    language
+  } = useApp();
 
-  const [selectedType, setSelectedType] = useState<string>('전체');
-  const [searchQuery, setSearchQuery] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [cardCopiedId, setCardCopiedId] = useState<string | null>(null);
+  const [previewingSlug, setPreviewingSlug] = useState<string | null>(null);
 
-  // Video playback modal state
-  const [activeSampleVideo, setActiveSampleVideo] = useState<ProposalSampleItem | null>(null);
+  // New Proposal Client Modal
+  const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientSlug, setNewClientSlug] = useState('');
+  const [newProposalTitle, setNewProposalTitle] = useState('');
+  const [newClientNotice, setNewClientNotice] = useState('');
 
-  // New sample registration modal state
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // New Sample Card Modal
+  const [isAddSampleModalOpen, setIsAddSampleModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newInstitution, setNewInstitution] = useState('');
   const [newLectureType, setNewLectureType] = useState('1인강의형');
@@ -52,26 +63,39 @@ export const ProposalSampleView: React.FC = () => {
     '사진, 영상 등의 다양한 시각적 자료를 효과적으로 활용\n학습자 몰입도를 높이는 전자칠판 판서 및 핵심 요약 구성\n원거리 및 모바일 환경에서도 가독성이 뛰어난 전면 강의 연출'
   );
 
-  // QR Code canvas reference
-  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Video playback modal state
+  const [activeSampleVideo, setActiveSampleVideo] = useState<ProposalSampleItem | null>(null);
 
-  // Evaluation share URL: Evaluators opening this link see the proposal sample showcase
-  const shareUrl = useMemo(() => {
-    if (typeof window === 'undefined') return '';
+  // Filter state for manager
+  const [managerFilterType, setManagerFilterType] = useState<'all' | 'assigned_only'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Selected client
+  const activeClient = useMemo<ProposalClientPackage>(() => {
+    const found = proposalClients.find(c => c.id === selectedProposalClientId);
+    return found || proposalClients[0];
+  }, [proposalClients, selectedProposalClientId]);
+
+  // Delivery link dedicated to this specific client
+  const clientDeliveryUrl = useMemo(() => {
+    if (typeof window === 'undefined' || !activeClient) return '';
     const origin = window.location.origin;
     const pathname = window.location.pathname;
-    return `${origin}${pathname}?view=sample`;
-  }, []);
+    return `${origin}${pathname}?proposal=${encodeURIComponent(activeClient.slug)}`;
+  }, [activeClient]);
 
-  // Generate QR code onto canvas whenever shareUrl changes
+  // QR canvas reference
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Generate QR code for client delivery URL
   useEffect(() => {
-    if (!qrCanvasRef.current || !shareUrl) return;
+    if (!qrCanvasRef.current || !clientDeliveryUrl) return;
 
     QRCode.toCanvas(
       qrCanvasRef.current,
-      shareUrl,
+      clientDeliveryUrl,
       {
-        width: 140,
+        width: 150,
         margin: 1,
         color: {
           dark: '#0f172a',
@@ -79,55 +103,62 @@ export const ProposalSampleView: React.FC = () => {
         },
         errorCorrectionLevel: 'M'
       },
-      (error) => {
-        if (error) {
-          console.error('QR Code generation failed:', error);
-        }
+      error => {
+        if (error) console.error('QR code generation failed:', error);
       }
     );
-  }, [shareUrl]);
+  }, [clientDeliveryUrl]);
 
-  // Copy proposal URL to clipboard
-  const handleCopyUrl = async () => {
-    if (!shareUrl) return;
+  // Copy client delivery URL
+  const handleCopyClientUrl = async () => {
+    if (!clientDeliveryUrl) return;
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(clientDeliveryUrl);
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 2000);
     } catch (err) {
-      console.error('Failed to copy share URL:', err);
+      console.error('Failed to copy URL:', err);
     }
   };
 
-  // Download high-resolution QR Code image for Word / HWP / PPT proposal embedding
+  // Download client-specific QR code PNG
   const handleDownloadQr = () => {
-    if (!qrCanvasRef.current) return;
+    if (!qrCanvasRef.current || !activeClient) return;
     try {
       const dataUrl = qrCanvasRef.current.toDataURL('image/png');
       const downloadLink = document.createElement('a');
       downloadLink.href = dataUrl;
-      downloadLink.download = 'whomedia-proposal-sample-qr.png';
+      downloadLink.download = `${activeClient.name}_제안서_전용_QR코드.png`;
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
     } catch (err) {
-      console.error('Failed to download QR code image:', err);
+      console.error('Failed to download QR image:', err);
     }
   };
 
-  // Copy individual card link
-  const handleCopyCardLink = async (sample: ProposalSampleItem) => {
-    const cardUrl = `${shareUrl}&sampleId=${encodeURIComponent(sample.id)}`;
-    try {
-      await navigator.clipboard.writeText(cardUrl);
-      setCardCopiedId(sample.id);
-      setTimeout(() => setCardCopiedId(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy card URL:', err);
-    }
+  // Handle creating new client proposal package
+  const handleCreateClient = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClientName.trim() || !newClientSlug.trim()) return;
+
+    addProposalClient({
+      name: newClientName.trim(),
+      slug: newClientSlug.trim(),
+      proposalTitle:
+        newProposalTitle.trim() || `${newClientName.trim()} 온라인 교육과정 콘텐츠 개발 사업 제안`,
+      assignedSampleIds: [],
+      customNotice: newClientNotice.trim() || undefined
+    });
+
+    setNewClientName('');
+    setNewClientSlug('');
+    setNewProposalTitle('');
+    setNewClientNotice('');
+    setIsAddClientModalOpen(false);
   };
 
-  // Handle adding new sample
+  // Handle creating new sample card
   const handleCreateSample = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newInstitution.trim()) return;
@@ -152,364 +183,528 @@ export const ProposalSampleView: React.FC = () => {
           : ['사진, 영상 등의 다양한 시각적 자료를 효과적으로 활용']
     });
 
-    // Reset & close
     setNewTitle('');
     setNewInstitution('');
     setNewInstructor('');
     setNewVideoUrl('');
     setNewThumbnailUrl('');
-    setIsAddModalOpen(false);
+    setIsAddSampleModalOpen(false);
   };
 
-  // Filtered samples
-  const filteredSamples = useMemo(() => {
-    return proposalSamples.filter(item => {
-      const matchesType = selectedType === '전체' || item.lectureType === selectedType;
-      const q = searchQuery.toLowerCase().trim();
-      const matchesQuery =
-        !q ||
-        item.title.toLowerCase().includes(q) ||
-        item.institution.toLowerCase().includes(q) ||
-        (item.instructor && item.instructor.toLowerCase().includes(q)) ||
-        item.descriptionBullets.some(b => b.toLowerCase().includes(q));
-      return matchesType && matchesQuery;
-    });
-  }, [proposalSamples, selectedType, searchQuery]);
+  // If in Preview Mode, render the client view directly!
+  if (previewingSlug) {
+    return (
+      <ProposalClientView
+        clientSlug={previewingSlug}
+        isPreview={true}
+        onExitPreview={() => setPreviewingSlug(null)}
+      />
+    );
+  }
+
+  const assignedSet = new Set(activeClient?.assignedSampleIds || []);
+
+  const displayedSamples = proposalSamples.filter(item => {
+    if (managerFilterType === 'assigned_only' && !assignedSet.has(item.id)) return false;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      item.title.toLowerCase().includes(q) ||
+      item.institution.toLowerCase().includes(q) ||
+      item.lectureType.toLowerCase().includes(q)
+    );
+  });
 
   return (
-    <div className="space-y-6 pb-12 font-sans">
-      {/* ================= 1. PROPOSAL HEADER & QR CODE EXPORTER BANNER ================= */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6 transition-all">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          {/* Left Title & Explanation */}
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-              <FileCheck className="w-3.5 h-3.5 text-blue-600" />
-              <span>{language === 'ko' ? '제안서 서류평가 전용 도구' : 'Proposal Evaluation Suite'}</span>
+    <div className="space-y-6 pb-14 font-sans">
+      {/* ================= 1. ADMIN CONSOLE HEADER ================= */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+              <span>관리자 전용 콘솔 · 제안사별 격리 시스템</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              {language === 'ko' ? '제안샘플 사이트 & QR·URL 생성기' : 'Proposal Sample Showcase & QR Generator'}
+              제안사별 전용 샘플 사이트 & 전달 링크 관리
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              {language === 'ko'
-                ? '별도의 업무요청 없이, 대학·기관 입찰 제안서에 삽입할 샘플 사이트 접속 URL과 고해상도 QR코드를 실시간 생성하고 다운로드할 수 있습니다.'
-                : 'Instantly generate and download high-resolution QR codes and evaluation links to embed in RFP documents without filing manual work requests.'}
+              제안사(발주처)에는 <strong>오직 해당 기관만을 위해 선별된 샘플</strong>만 노출되며, 다른 대학이나 경쟁사의
+              샘플은 절대 보여지지 않습니다. 각 제안사 전용 링크와 QR코드를 생성하여 제안서에 기재하십시오.
             </p>
-
-            <div className="flex items-center gap-2 pt-1 text-xs text-amber-800 bg-amber-50/80 border border-amber-200/70 px-3 py-2 rounded-lg">
-              <Info className="w-4 h-4 shrink-0 text-amber-600" />
-              <span>
-                {language === 'ko'
-                  ? '제안서 서류평가 시 URL과 QR코드를 나란히 배치하면 평가위원이 스마트폰과 PC에서 즉시 강의 샘플을 검수할 수 있습니다.'
-                  : 'Place both the URL and QR code in your proposal document so committee members can easily review on mobile and desktop.'}
-              </span>
-            </div>
           </div>
 
-          {/* Right QR Code Generator Card */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4 shrink-0 shadow-2xs">
-            <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-2xs shrink-0 flex items-center justify-center">
-              <canvas ref={qrCanvasRef} width={140} height={140} className="w-[120px] h-[120px] sm:w-[130px] sm:h-[130px]" />
-            </div>
-
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center sm:text-left">
-                {language === 'ko' ? '서류평가 제출용' : 'For Document Review'}
-              </div>
-
-              {/* Download QR PNG Button */}
-              <button
-                type="button"
-                onClick={handleDownloadQr}
-                className="flex items-center justify-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 active:bg-black text-white text-xs sm:text-sm font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
-                title="제안서 삽입용 QR코드 이미지(PNG) 저장"
-              >
-                <Download className="w-4 h-4 text-emerald-400" />
-                <span>{language === 'ko' ? 'QR코드 다운로드 (PNG)' : 'Download QR Image'}</span>
-              </button>
-
-              {/* Copy URL Button */}
-              <button
-                type="button"
-                onClick={handleCopyUrl}
-                className="flex items-center justify-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 text-xs sm:text-sm font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
-                title="제안서 표기용 URL 복사"
-              >
-                {copiedUrl ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-600" />
-                    <span className="text-emerald-700 font-bold">{language === 'ko' ? 'URL 복사 완료!' : 'URL Copied!'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 text-blue-600" />
-                    <span>{language === 'ko' ? '제안서용 URL 복사' : 'Copy Proposal URL'}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Current URL Readout Bar */}
-        <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 font-mono">
-          <div className="truncate flex items-center gap-1.5">
-            <span className="px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700 font-semibold uppercase text-[10px]">
-              URL
-            </span>
-            <span className="text-slate-800 truncate select-all">{shareUrl}</span>
-          </div>
-          <div className="text-slate-400 shrink-0 font-sans text-xs">
-            {language === 'ko' ? `총 ${proposalSamples.length}개 제안샘플 등록됨` : `${proposalSamples.length} samples registered`}
-          </div>
-        </div>
-      </div>
-
-      {/* ================= 2. SEARCH, CATEGORY FILTER & DIRECT ADD BUTTON ================= */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
-          {LECTURE_TYPES.map(type => (
+          <div className="flex items-center gap-2 flex-wrap">
             <button
-              key={type}
               type="button"
-              onClick={() => setSelectedType(type)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                selectedType === type
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-              }`}
+              onClick={() => setIsAddClientModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs sm:text-sm font-bold rounded-lg shadow-xs transition-all cursor-pointer"
             >
-              {type}
+              <Plus className="w-4 h-4 text-emerald-400" />
+              <span>새 제안 대상사 추가</span>
             </button>
-          ))}
-        </div>
-
-        {/* Right Search & Add Card Button */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder={language === 'ko' ? '강좌명, 기관명, 교수자 검색' : 'Search title, institution...'}
-              className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <button
+              type="button"
+              onClick={() => setIsAddSampleModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow-xs transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>새 강좌 샘플 카드 등록</span>
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs sm:text-sm font-bold rounded-lg shadow-xs transition-all cursor-pointer whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{language === 'ko' ? '제안샘플 등록' : 'Add Sample'}</span>
-          </button>
         </div>
       </div>
 
-      {/* ================= 3. SAMPLE CARDS GRID (1:1 MATCHING USER SCREENSHOT) ================= */}
-      {filteredSamples.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
-          <Film className="w-12 h-12 mx-auto text-slate-300" />
-          <h2 className="text-base font-bold text-slate-700">
-            {language === 'ko' ? '해당 조건의 제안샘플이 없습니다.' : 'No matching proposal samples found.'}
-          </h2>
-          <p className="text-xs text-slate-400">
-            {language === 'ko'
-              ? '새로운 제안샘플 카드를 등록하거나 [동영상 강의 검수] 화면에서 1클릭으로 추가할 수 있습니다.'
-              : 'Add a new proposal sample card or add directly from the review table.'}
-          </p>
+      {/* ================= 2. PROPOSAL CLIENT SELECTOR TABS ================= */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 sm:p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <Building2 className="w-4 h-4 text-slate-400" />
+            <span>제안 대상사(발주처) 선택</span>
+          </div>
+          <span className="text-xs text-slate-400 font-medium">
+            총 {proposalClients.length}개 제안 프로젝트 등록됨
+          </span>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {filteredSamples.map(sample => (
-            <div
-              key={sample.id}
-              className="group bg-white rounded-2xl border border-slate-200/90 hover:border-blue-400 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden"
-            >
-              {/* Card Thumbnail Area (16:9) with Play Hover */}
-              <div
-                className="relative aspect-video bg-slate-900 overflow-hidden cursor-pointer select-none"
-                onClick={() => setActiveSampleVideo(sample)}
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {proposalClients.map(client => {
+            const isSelected = activeClient?.id === client.id;
+            const assignedCount = client.assignedSampleIds.length;
+            return (
+              <button
+                key={client.id}
+                type="button"
+                onClick={() => setSelectedProposalClientId(client.id)}
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  isSelected
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-600 ring-offset-2'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                }`}
               >
-                {sample.thumbnailUrl ? (
-                  <img
-                    src={sample.thumbnailUrl}
-                    alt={sample.title}
-                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex flex-col items-center justify-center p-4 text-center">
-                    <Film className="w-8 h-8 text-blue-400 mb-2 opacity-80" />
-                    <span className="text-xs font-bold text-white/90 line-clamp-2 px-2">{sample.title}</span>
-                    <span className="text-[11px] text-blue-300 mt-1">{sample.institution}</span>
-                  </div>
-                )}
+                <span>{client.name}</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold ${
+                    isSelected ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {assignedCount}개 샘플
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-                {/* Duration Badge */}
-                {sample.duration && (
-                  <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/75 text-[11px] font-mono font-medium text-white">
-                    {Math.floor(sample.duration / 60)}:
-                    {String(sample.duration % 60).padStart(2, '0')}
-                  </div>
-                )}
-
-                {/* Central Play Button Overlay on Hover */}
-                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity">
-                  <div className="w-11 h-11 rounded-full bg-white/95 text-blue-600 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
-                    <Play className="w-5 h-5 fill-current ml-0.5" />
-                  </div>
-                </div>
+      {/* ================= 3. "그들에게 전달할 링크 주소 & QR코드" (DELIVERY BOX) ================= */}
+      {activeClient && (
+        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 text-white rounded-2xl p-5 sm:p-7 shadow-lg border border-slate-700">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            {/* Left: Client info and Delivery Link */}
+            <div className="space-y-4 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-md bg-blue-500/30 text-blue-300 font-bold text-xs border border-blue-400/40">
+                  {activeClient.name} 전용 전달 링크
+                </span>
+                <span className="text-xs text-slate-400 font-mono">
+                  슬러그: ?proposal={activeClient.slug}
+                </span>
               </div>
 
-              {/* Card Body - Exactly matching the user's reference screenshot */}
-              <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
-                <div>
-                  {/* ◆ Title (Blue Diamond Bullet + Bold Title) */}
-                  <div className="flex items-start gap-1.5">
-                    <span className="text-sky-600 font-black text-sm select-none leading-tight mt-0.5">◆</span>
-                    <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug tracking-tight">
-                      {sample.title}
-                    </h3>
-                  </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                  {activeClient.proposalTitle}
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 mt-1">
+                  제안서 본문 및 서류평가 심사위원에게 전달할 <strong>전용 웹 주소</strong>입니다.
+                  접속 시 <strong>{activeClient.name}</strong>에 배정된 샘플({assignedSet.size}개)만 노출됩니다.
+                </p>
+              </div>
 
-                  {/* Institution Name */}
-                  <div className="text-xs sm:text-sm font-semibold text-slate-700 mt-1.5 pl-4">
-                    {sample.institution}
-                  </div>
-
-                  {/* Format Badge (Light blue badge e.g. 1인강의형) */}
-                  <div className="mt-2.5 pl-4">
-                    <span className="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-200/50">
-                      {sample.lectureType}
-                    </span>
-                  </div>
-
-                  {/* Feature Bullet Points */}
-                  <ul className="mt-3.5 space-y-1.5 text-xs text-slate-600 pl-4 border-t border-slate-100 pt-3">
-                    {sample.descriptionBullets.map((bullet, idx) => (
-                      <li key={idx} className="flex items-start gap-1.5 leading-relaxed">
-                        <span className="text-slate-400 select-none">•</span>
-                        <span>{bullet}</span>
-                      </li>
-                    ))}
-                  </ul>
+              {/* The Delivery URL Box (High-Contrast & Large) */}
+              <div className="bg-black/60 border border-blue-500/40 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-inner">
+                <div className="flex items-center gap-2.5 truncate font-mono text-xs sm:text-sm">
+                  <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[11px] shrink-0">
+                    전달용 URL
+                  </span>
+                  <span className="text-blue-200 font-semibold truncate select-all">
+                    {clientDeliveryUrl}
+                  </span>
                 </div>
 
-                {/* Card Action Footer */}
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-1 text-xs text-slate-500">
+                <button
+                  type="button"
+                  onClick={handleCopyClientUrl}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow-xs transition-all cursor-pointer shrink-0"
+                >
+                  {copiedUrl ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-300" />
+                      <span className="text-white font-bold">주소 복사 완료!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>전용 링크 주소 복사</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Security Isolation Notice */}
+              <div className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-950/60 border border-emerald-800/60 px-3 py-2 rounded-lg">
+                <Lock className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>
+                  <strong>제안사 완벽 격리 활성화됨:</strong> 이 주소로 접속하는 제안사 심사위원은 타 기관/타 사의
+                  샘플이나 사내 관리 메뉴를 일체 볼 수 없습니다.
+                </span>
+              </div>
+            </div>
+
+            {/* Right: QR Code for Client Proposal */}
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-white/5 border border-white/10 rounded-xl p-4 shrink-0 lg:w-72">
+              <div className="bg-white p-2 rounded-xl shrink-0 shadow-md flex items-center justify-center">
+                <canvas ref={qrCanvasRef} width={150} height={150} className="w-[130px] h-[130px]" />
+              </div>
+
+              <div className="flex flex-col gap-2 w-full">
+                <div className="text-xs font-bold text-slate-300 text-center sm:text-left">
+                  서류평가 인쇄용 QR
+                </div>
+
+                {/* Download QR PNG Button */}
+                <button
+                  type="button"
+                  onClick={handleDownloadQr}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer"
+                  title="제안서 삽입용 QR코드 이미지(PNG) 저장"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>QR코드 다운로드</span>
+                </button>
+
+                {/* Preview Client Page Button */}
+                <button
+                  type="button"
+                  onClick={() => setPreviewingSlug(activeClient.slug)}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-all cursor-pointer"
+                  title="제안사 심사위원에게 실제로 어떻게 보이는지 미리보기"
+                >
+                  <Eye className="w-3.5 h-3.5 text-blue-300" />
+                  <span>제안사 화면 미리보기</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= 4. SAMPLE ASSIGNMENT & ISOLATION MANAGEMENT ================= */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              {activeClient.name} 제안서에 노출할 샘플 선택 (샘플 격리 관리)
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              체크된 샘플만 {activeClient.name} 전용 링크에 노출되며, 체크 해제된 샘플은 철저히 비노출 격리됩니다.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setManagerFilterType('all')}
+                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                  managerFilterType === 'all'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                전체 샘플 ({proposalSamples.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setManagerFilterType('assigned_only')}
+                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                  managerFilterType === 'assigned_only'
+                    ? 'bg-white text-blue-700 font-bold shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                배정된 샘플만 ({assignedSet.size})
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Card Grid (matching screenshot 1:1 with assignment toggle) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {displayedSamples.map(sample => {
+            const isAssigned = assignedSet.has(sample.id);
+            return (
+              <div
+                key={sample.id}
+                className={`group bg-white rounded-2xl border transition-all duration-200 flex flex-col overflow-hidden ${
+                  isAssigned
+                    ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md'
+                    : 'border-slate-200 opacity-75 hover:opacity-100 shadow-2xs'
+                }`}
+              >
+                {/* Assignment Status Top Bar */}
+                <div
+                  className={`px-3.5 py-2 text-xs font-bold flex items-center justify-between ${
+                    isAssigned
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    {isAssigned ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                        <span>{activeClient.name} 전용 링크에 노출 중</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>비노출 (심사위원 차단됨)</span>
+                      </>
+                    )}
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setActiveSampleVideo(sample)}
-                    className="flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 text-blue-700 font-bold transition-colors cursor-pointer"
+                    onClick={() => toggleSampleInProposalClient(activeClient.id, sample.id)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                      isAssigned
+                        ? 'bg-blue-700 hover:bg-blue-800 text-white'
+                        : 'bg-white hover:bg-slate-200 text-slate-800 border border-slate-300'
+                    }`}
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>{language === 'ko' ? '영상 보기' : 'Watch'}</span>
+                    {isAssigned ? '제외하기' : '+ 배정하기'}
                   </button>
+                </div>
 
-                  <div className="flex items-center gap-1">
+                {/* 16:9 Thumbnail Area with Play Button */}
+                <div
+                  className="relative aspect-video bg-slate-900 overflow-hidden cursor-pointer select-none"
+                  onClick={() => setActiveSampleVideo(sample)}
+                >
+                  {sample.thumbnailUrl ? (
+                    <img
+                      src={sample.thumbnailUrl}
+                      alt={sample.title}
+                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex flex-col items-center justify-center p-4 text-center">
+                      <Film className="w-8 h-8 text-blue-400 mb-2 opacity-80" />
+                      <span className="text-xs font-bold text-white/90 line-clamp-2 px-2">
+                        {sample.title}
+                      </span>
+                      <span className="text-[11px] text-blue-300 mt-1">{sample.institution}</span>
+                    </div>
+                  )}
+
+                  {sample.duration && (
+                    <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/75 text-[11px] font-mono font-medium text-white">
+                      {Math.floor(sample.duration / 60)}:
+                      {String(sample.duration % 60).padStart(2, '0')}
+                    </div>
+                  )}
+
+                  <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity">
+                    <div className="w-10 h-10 rounded-full bg-white/95 text-blue-600 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                      <Play className="w-4 h-4 fill-current ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Body (Matching User Screenshot 1:1) */}
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
+                  <div>
+                    {/* ◆ 강좌명 (Blue Diamond Bullet + Bold Title) */}
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-sky-600 font-black text-sm select-none leading-tight mt-0.5">◆</span>
+                      <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug tracking-tight">
+                        {sample.title}
+                      </h3>
+                    </div>
+
+                    {/* 기관명 */}
+                    <div className="text-xs sm:text-sm font-semibold text-slate-700 mt-1.5 pl-4">
+                      {sample.institution}
+                    </div>
+
+                    {/* 강의형태 뱃지 */}
+                    <div className="mt-2.5 pl-4">
+                      <span className="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-200/50">
+                        {sample.lectureType}
+                      </span>
+                    </div>
+
+                    {/* 특징 불릿 */}
+                    <ul className="mt-3.5 space-y-1.5 text-xs text-slate-600 pl-4 border-t border-slate-100 pt-3">
+                      {sample.descriptionBullets.map((bullet, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5 leading-relaxed">
+                          <span className="text-slate-400 select-none">•</span>
+                          <span>{bullet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Card Actions */}
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                     <button
                       type="button"
-                      onClick={() => handleCopyCardLink(sample)}
-                      className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-                      title={language === 'ko' ? '샘플 바로가기 링크 복사' : 'Copy Sample Link'}
+                      onClick={() => setActiveSampleVideo(sample)}
+                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold cursor-pointer"
                     >
-                      {cardCopiedId === sample.id ? (
-                        <Check className="w-4 h-4 text-emerald-600" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>영상 보기</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => {
-                        if (confirm(`'${sample.title}' 샘플을 삭제하시겠습니까?`)) {
+                        if (confirm(`'${sample.title}' 샘플을 완전히 삭제하시겠습니까?`)) {
                           deleteProposalSample(sample.id);
                         }
                       }}
-                      className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                      title={language === 'ko' ? '제안샘플 삭제' : 'Delete'}
+                      className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                      title="샘플 삭제"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      )}
+      </div>
 
-      {/* ================= 4. VIDEO PLAYBACK MODAL ================= */}
-      {activeSampleVideo && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
-          <div className="bg-slate-900 rounded-2xl max-w-4xl w-full overflow-hidden border border-slate-700 shadow-2xl flex flex-col">
-            {/* Modal Header */}
-            <div className="p-4 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between text-white">
+      {/* ================= 5. NEW CLIENT PROPOSAL MODAL ================= */}
+      {isAddClientModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden border border-slate-200 shadow-2xl flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
-                <span className="text-sky-400 font-black">◆</span>
-                <h3 className="font-bold text-base sm:text-lg">{activeSampleVideo.title}</h3>
-                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-sky-950 text-sky-300 border border-sky-800">
-                  {activeSampleVideo.institution}
-                </span>
-                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700 text-slate-200">
-                  {activeSampleVideo.lectureType}
-                </span>
+                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">새 제안 대상사(발주처) 등록</h3>
+                  <p className="text-xs text-slate-500">
+                    새로운 대학 또는 공공기관에 제안할 전용 페이지를 생성합니다.
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setActiveSampleVideo(null)}
-                className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                onClick={() => setIsAddClientModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Video Player Area */}
-            <div className="relative aspect-video bg-black flex items-center justify-center">
-              <video
-                src={activeSampleVideo.videoUrl}
-                controls
-                autoPlay
-                className="w-full h-full max-h-[65vh] object-contain"
-              >
-                브라우저가 동영상 재생을 지원하지 않습니다.
-              </video>
-            </div>
-
-            {/* Modal Footer with details */}
-            <div className="p-4 bg-slate-800/60 border-t border-slate-700 text-xs sm:text-sm text-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                {activeSampleVideo.instructor && (
-                  <div className="text-slate-400 font-medium">
-                    {language === 'ko' ? '교수자 / 강사: ' : 'Instructor: '}
-                    <span className="text-white font-semibold">{activeSampleVideo.instructor}</span>
-                  </div>
-                )}
-                <div className="text-slate-400 text-xs">
-                  {activeSampleVideo.descriptionBullets.join(' · ')}
-                </div>
+            <form onSubmit={handleCreateClient} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  제안사명 (대학 / 공공기관) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newClientName}
+                  onChange={e => {
+                    setNewClientName(e.target.value);
+                    if (!newClientSlug) {
+                      setNewClientSlug(
+                        e.target.value
+                          .replace(/[^a-zA-Z0-9]/g, '')
+                          .toLowerCase()
+                          .slice(0, 10)
+                      );
+                    }
+                  }}
+                  placeholder="예: 한국기술교육대학교"
+                  className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleCopyCardLink(activeSampleVideo)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shrink-0 cursor-pointer"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span>{language === 'ko' ? '이 영상 링크 복사' : 'Copy link'}</span>
-              </button>
-            </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  전용 접속 슬러그 (영문 소문자/숫자) *
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-400 font-mono">?proposal=</span>
+                  <input
+                    type="text"
+                    required
+                    value={newClientSlug}
+                    onChange={e => setNewClientSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                    placeholder="koreatech"
+                    className="flex-1 px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  이 슬러그로 제안사 전용 주소(<span className="font-mono">?proposal={newClientSlug || 'slug'}</span>)가 생성됩니다.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  제안 사업명 (선택)
+                </label>
+                <input
+                  type="text"
+                  value={newProposalTitle}
+                  onChange={e => setNewProposalTitle(e.target.value)}
+                  placeholder="예: 2026 첨단산업 스마트 직무 교육 콘텐츠 제작 제안"
+                  className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  심사위원 전용 안내 문구 (선택)
+                </label>
+                <textarea
+                  rows={2}
+                  value={newClientNotice}
+                  onChange={e => setNewClientNotice(e.target.value)}
+                  placeholder="심사위원에게 전달할 보안 및 검수 안내문을 기재하세요."
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddClientModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-xs cursor-pointer"
+                >
+                  제안 대상사 생성 완료
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* ================= 5. NEW SAMPLE REGISTRATION MODAL ================= */}
-      {isAddModalOpen && (
+      {/* ================= 6. NEW SAMPLE CARD MODAL ================= */}
+      {isAddSampleModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden border border-slate-200 shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
@@ -518,29 +713,24 @@ export const ProposalSampleView: React.FC = () => {
                   <Plus className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-base">
-                    {language === 'ko' ? '새 제안샘플 카드 직접 등록' : 'Register New Proposal Sample'}
-                  </h3>
+                  <h3 className="font-bold text-slate-900 text-base">새 강좌 샘플 카드 직접 등록</h3>
                   <p className="text-xs text-slate-500">
-                    {language === 'ko' ? '제안서와 QR코드에 노출될 샘플 정보를 입력합니다.' : 'Enter details for the proposal evaluation card.'}
+                    제안서와 QR코드에 표기될 강좌 정보를 입력합니다.
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                onClick={() => setIsAddSampleModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateSample} className="p-5 space-y-4 overflow-y-auto flex-1">
-              {/* 강좌명 */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {language === 'ko' ? '강좌명 *' : 'Course Title *'}
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">강좌명 *</label>
                 <input
                   type="text"
                   required
@@ -551,27 +741,21 @@ export const ProposalSampleView: React.FC = () => {
                 />
               </div>
 
-              {/* 기관명 / 대학교 */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {language === 'ko' ? '기관명 / 대학교 *' : 'Institution / University *'}
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">기관명 / 대학교 *</label>
                 <input
                   type="text"
                   required
                   value={newInstitution}
                   onChange={e => setNewInstitution(e.target.value)}
-                  placeholder="예: 경희사이버대학교, 인하대학교 등"
+                  placeholder="예: 경희사이버대학교"
                   className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              {/* 강의 형태 및 교수자 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {language === 'ko' ? '강의 형태' : 'Lecture Type'}
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">강의 형태</label>
                   <select
                     value={newLectureType}
                     onChange={e => setNewLectureType(e.target.value)}
@@ -586,9 +770,7 @@ export const ProposalSampleView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {language === 'ko' ? '교수자 / 강사명' : 'Instructor'}
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">교수자 / 강사명</label>
                   <input
                     type="text"
                     value={newInstructor}
@@ -599,11 +781,8 @@ export const ProposalSampleView: React.FC = () => {
                 </div>
               </div>
 
-              {/* 동영상 URL */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {language === 'ko' ? '재생 동영상 URL (MP4 등)' : 'Video URL'}
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">동영상 URL (MP4 등)</label>
                 <input
                   type="url"
                   value={newVideoUrl}
@@ -613,49 +792,94 @@ export const ProposalSampleView: React.FC = () => {
                 />
               </div>
 
-              {/* 썸네일 이미지 URL */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {language === 'ko' ? '썸네일 이미지 URL (선택)' : 'Thumbnail URL (Optional)'}
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">썸네일 이미지 URL (선택)</label>
                 <input
                   type="text"
                   value={newThumbnailUrl}
                   onChange={e => setNewThumbnailUrl(e.target.value)}
-                  placeholder="예: /assets/aistudio/image_f623d953.png 또는 웹 이미지 URL"
+                  placeholder="예: /assets/aistudio/image_f623d953.png"
                   className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              {/* 주요 특징 요약 불릿 */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {language === 'ko' ? '주요 특징 불릿 목록 (줄바꿈으로 구분)' : 'Feature Bullets (1 per line)'}
+                  주요 특징 불릿 목록 (줄바꿈 구분)
                 </label>
                 <textarea
                   rows={3}
                   value={newBulletsText}
                   onChange={e => setNewBulletsText(e.target.value)}
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-mono"
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono leading-relaxed"
                 />
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  onClick={() => setIsAddSampleModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
                 >
-                  {language === 'ko' ? '취소' : 'Cancel'}
+                  취소
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs sm:text-sm font-bold shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-xs cursor-pointer"
                 >
-                  {language === 'ko' ? '제안샘플 등록 완료' : 'Save Sample'}
+                  등록 완료
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= 7. VIDEO PLAYBACK MODAL ================= */}
+      {activeSampleVideo && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-2xl max-w-4xl w-full overflow-hidden border border-slate-700 shadow-2xl flex flex-col">
+            <div className="p-4 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between text-white">
+              <div className="flex items-center gap-2 truncate">
+                <span className="text-sky-400 font-black">◆</span>
+                <h3 className="font-bold text-base sm:text-lg truncate">{activeSampleVideo.title}</h3>
+                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-sky-950 text-sky-300 border border-sky-800 shrink-0">
+                  {activeSampleVideo.institution}
+                </span>
+                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700 text-slate-200 shrink-0">
+                  {activeSampleVideo.lectureType}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveSampleVideo(null)}
+                className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative aspect-video bg-black flex items-center justify-center">
+              <video
+                src={activeSampleVideo.videoUrl}
+                controls
+                autoPlay
+                className="w-full h-full max-h-[70vh] object-contain"
+              >
+                동영상 재생을 지원하지 않는 브라우저입니다.
+              </video>
+            </div>
+
+            <div className="p-4 bg-slate-800/60 border-t border-slate-700 text-xs sm:text-sm text-slate-300 flex items-center justify-between">
+              <div>{activeSampleVideo.descriptionBullets.join(' · ')}</div>
+              <button
+                type="button"
+                onClick={() => setActiveSampleVideo(null)}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
       )}

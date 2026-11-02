@@ -10,7 +10,8 @@ import {
   NotificationItem,
   ProjectItem,
   VideoAiAnalysis,
-  ProposalSampleItem
+  ProposalSampleItem,
+  ProposalClientPackage
 } from '../types';
 import {
   INITIAL_VIDEOS,
@@ -18,7 +19,7 @@ import {
   INITIAL_NOTIFICATIONS
 } from '../data/initialData';
 import { INITIAL_PROJECTS } from '../data/projectData';
-import { INITIAL_PROPOSAL_SAMPLES } from '../data/proposalSampleData';
+import { INITIAL_PROPOSAL_SAMPLES, INITIAL_PROPOSAL_CLIENTS } from '../data/proposalSampleData';
 import { firebaseConfigured } from '../utils/firebaseClient';
 import { subscribeToReviewData, subscribeToSharedVideo, newFirestoreId, saveFirestoreDocument, deleteFirestoreDocument, deleteFirestoreBatch } from '../utils/firebaseStore';
 import { mapFirestoreSnapshot, statusToFirestore, toFirestoreComment } from '../utils/firestoreAdapter';
@@ -100,6 +101,15 @@ interface AppContextType {
   addProposalSample: (sample: Omit<ProposalSampleItem, 'id' | 'createdAt'>) => void;
   deleteProposalSample: (id: string) => void;
   addVideoToProposalSamples: (video: VideoSession, institution?: string, lectureType?: string) => void;
+  proposalClients: ProposalClientPackage[];
+  selectedProposalClientId: string | null;
+  setSelectedProposalClientId: (id: string | null) => void;
+  addProposalClient: (pkg: Omit<ProposalClientPackage, 'id' | 'createdAt'>) => void;
+  updateProposalClient: (id: string, updates: Partial<ProposalClientPackage>) => void;
+  deleteProposalClient: (id: string) => void;
+  toggleSampleInProposalClient: (clientId: string, sampleId: string) => void;
+  activeProposalSlug: string | null;
+  setActiveProposalSlug: (slug: string | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -113,7 +123,8 @@ const STORAGE_KEYS = {
   CURRENT_ROLE: 'video_review_role_v1',
   PROJECTS: 'video_review_projects_v1',
   USER_VIEW_MODE: 'video_review_view_mode_v1',
-  PROPOSAL_SAMPLES: 'video_review_proposal_samples_v1'
+  PROPOSAL_SAMPLES: 'video_review_proposal_samples_v1',
+  PROPOSAL_CLIENTS: 'video_review_proposal_clients_v1'
 };
 
 const DEMO_PERSON_NAMES = new Set(['이영희', '박제작', '김관리', '최참관']);
@@ -920,6 +931,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Proposal Clients State & Isolation Management
+  const [proposalClients, setProposalClients] = useState<ProposalClientPackage[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.PROPOSAL_CLIENTS);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_PROPOSAL_CLIENTS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PROPOSAL_CLIENTS, JSON.stringify(proposalClients));
+  }, [proposalClients]);
+
+  const [selectedProposalClientId, setSelectedProposalClientId] = useState<string | null>(() => {
+    return INITIAL_PROPOSAL_CLIENTS[0]?.id || null;
+  });
+
+  const [activeProposalSlug, setActiveProposalSlugState] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('proposal') || params.get('client') || params.get('p') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const setActiveProposalSlug = (slug: string | null) => {
+    setActiveProposalSlugState(slug);
+    try {
+      const url = new URL(window.location.href);
+      if (slug) {
+        url.searchParams.set('proposal', slug);
+      } else {
+        url.searchParams.delete('proposal');
+        url.searchParams.delete('client');
+        url.searchParams.delete('p');
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const addProposalClient = (pkg: Omit<ProposalClientPackage, 'id' | 'createdAt'>) => {
+    const now = new Date();
+    const formatted = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+    const newPkg: ProposalClientPackage = {
+      ...pkg,
+      id: `client-${Date.now()}`,
+      slug: pkg.slug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || `p${Date.now()}`,
+      createdAt: formatted
+    };
+    setProposalClients(prev => [...prev, newPkg]);
+    setSelectedProposalClientId(newPkg.id);
+    addAuditLog('PROPOSAL_CLIENT_ADD', newPkg.name, `새 제안사 등록 (슬러그: ${newPkg.slug})`);
+  };
+
+  const updateProposalClient = (id: string, updates: Partial<ProposalClientPackage>) => {
+    setProposalClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    addAuditLog('PROPOSAL_CLIENT_UPDATE', id, '제안사 설정 및 샘플 목록 업데이트');
+  };
+
+  const deleteProposalClient = (id: string) => {
+    const target = proposalClients.find(c => c.id === id);
+    setProposalClients(prev => prev.filter(c => c.id !== id));
+    if (selectedProposalClientId === id) {
+      const remaining = proposalClients.filter(c => c.id !== id);
+      setSelectedProposalClientId(remaining[0]?.id || null);
+    }
+    addAuditLog('PROPOSAL_CLIENT_DELETE', target?.name || id, '제안사 패키지 삭제');
+  };
+
+  const toggleSampleInProposalClient = (clientId: string, sampleId: string) => {
+    setProposalClients(prev => prev.map(c => {
+      if (c.id !== clientId) return c;
+      const exists = c.assignedSampleIds.includes(sampleId);
+      const nextAssigned = exists
+        ? c.assignedSampleIds.filter(id => id !== sampleId)
+        : [...c.assignedSampleIds, sampleId];
+      return { ...c, assignedSampleIds: nextAssigned };
+    }));
+  };
+
   // Sync projects to storage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
@@ -980,7 +1076,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         proposalSamples,
         addProposalSample,
         deleteProposalSample,
-        addVideoToProposalSamples
+        addVideoToProposalSamples,
+        proposalClients,
+        selectedProposalClientId,
+        setSelectedProposalClientId,
+        addProposalClient,
+        updateProposalClient,
+        deleteProposalClient,
+        toggleSampleInProposalClient,
+        activeProposalSlug,
+        setActiveProposalSlug
       }}
     >
       {children}

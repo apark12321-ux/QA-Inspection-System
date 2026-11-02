@@ -79,3 +79,47 @@ export const INITIAL_PROPOSAL_SAMPLES: ProposalSampleItem[] = [
     createdAt: '2026.10.25'
   }
 ];
+
+export const INITIAL_PROPOSAL_CLIENTS: import('../types').ProposalClientPackage[] = [
+  {
+    id: 'client-khcu',
+    name: '경희사이버대학교',
+    slug: 'khcu',
+    proposalTitle: '2026학년도 원격 정규 교육과정 온라인 콘텐츠 개발 사업 제안',
+    assignedSampleIds: ['sample-khcu-01', 'sample-khcu-02'],
+    customNotice: '경희사이버대학교 제안서 서류평가 심사용 1인강의형 대표 샘플입니다. 타 사 정보는 노출되지 않습니다.',
+    contactPerson: '후미디어 제작총괄팀',
+    createdAt: '2026.10.28'
+  },
+  {
+    id: 'client-inha',
+    name: '인하대학교',
+    slug: 'inha',
+    proposalTitle: 'Bio Health ESG 실감형 온라인 강좌 개발 제안',
+    assignedSampleIds: ['sample-inha-03'],
+    customNotice: '인하대학교 제안서 심사용 스튜디오 고화질 제작 샘플입니다.',
+    contactPerson: '후미디어 제작총괄팀',
+    createdAt: '2026.10.27'
+  },
+  {
+    id: 'client-police',
+    name: '경찰수사연수원',
+    slug: 'police',
+    proposalTitle: '디지털포렌식 및 가상자산 수사 심화 교육과정 제작 제안',
+    assignedSampleIds: ['sample-police-04'],
+    customNotice: '경찰수사연수원 전문 직무 교육 모션그래픽형 제작 샘플입니다.',
+    contactPerson: '후미디어 제작총괄팀',
+    createdAt: '2026.10.26'
+  },
+  {
+    id: 'client-syu',
+    name: '삼육대학교',
+    slug: 'syu',
+    proposalTitle: 'SU-MOOC 스마트미래교육 크로마키 강좌 개발 제안',
+    assignedSampleIds: ['sample-syu-05'],
+    customNotice: '삼육대학교 SU-MOOC 크로마키 합성 교육과정 샘플입니다.',
+    contactPerson: '후미디어 제작총괄팀',
+    createdAt: '2026.10.25'
+  }
+];
+

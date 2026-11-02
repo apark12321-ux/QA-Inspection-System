@@ -7,6 +7,7 @@ import { UploadModal } from './components/UploadModal';
 import { ShareModal } from './components/ShareModal';
 import { ProjectRegistrationView } from './components/ProjectRegistrationView';
 import { ProposalSampleView } from './components/ProposalSampleView';
+import { ProposalClientView } from './components/ProposalClientView';
 import { AdminLayout } from './components/AdminLayout';
 import { WhomediaLogo } from './components/WhomediaLogo';
 import {
@@ -120,6 +121,11 @@ const RootContent: React.FC = () => {
         <ShareModal />
       </div>
     );
+  }
+
+  const proposalSlug = new URLSearchParams(window.location.search).get('proposal') || new URLSearchParams(window.location.search).get('client');
+  if (proposalSlug) {
+    return <ProposalClientView clientSlug={proposalSlug} />;
   }
 
   const openReview = () => {
