@@ -378,8 +378,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const url = new URL(window.location.href);
       if (!slug) {
         url.pathname = portalMode === 'admin' ? '/admin' : '/';
+        url.searchParams.delete('p');
+        url.searchParams.delete('project');
+        url.searchParams.delete('proposal');
       } else {
         url.pathname = portalMode === 'admin' ? `/${slug}/admin` : `/${slug}`;
+        url.searchParams.set('p', slug);
       }
       window.history.pushState({}, '', url.toString());
     } catch (e) {

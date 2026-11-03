@@ -70,6 +70,13 @@ const RootContent: React.FC = () => {
   }, [selectedVideo?.id, sharedVideoId]);
 
   useEffect(() => {
+    if (sharedVideo && !selectedVideo && !shareHadOpened) {
+      setSelectedVideo(sharedVideo);
+      setShareHadOpened(true);
+    }
+  }, [sharedVideo, selectedVideo, shareHadOpened, setSelectedVideo]);
+
+  useEffect(() => {
     if (!sharedVideoId || sharedVideo || isCloudSynced) {
       setShareLoadTimedOut(false);
       return;

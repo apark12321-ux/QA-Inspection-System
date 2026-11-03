@@ -38,6 +38,7 @@ export const ProjectRegistrationView: React.FC = () => {
     addNewVideo,
     setCurrentProjectSlug,
     setUserViewMode,
+    setPortalMode,
     currentUser,
     setCurrentUserName
   } = useApp();
@@ -58,9 +59,17 @@ export const ProjectRegistrationView: React.FC = () => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // 3. QR코드 모달 상태
-  const [qrModalProject, setQrModalProject] = useState<{ id: string; name: string; alias: string } | null>(null);
-  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // 3. QR코드 모달 상태 (프로젝트 전체 또는 개별 차시 영상)
+  interface QrModalTarget {
+    type: 'project' | 'video';
+    title: string;
+    subtitle: string;
+    badge: string;
+    url: string;
+    downloadFileName: string;
+  }
+  const [qrModalTarget, setQrModalTarget] = useState<QrModalTarget | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
   // 4. 담당자 / 검수자 이름 설정 상태
   const [editingUserName, setEditingUserName] = useState(false);
@@ -189,7 +198,14 @@ export const ProjectRegistrationView: React.FC = () => {
 
   const getProposalUrl = (alias: string) => {
     if (typeof window === 'undefined') return '';
-    return `${window.location.origin}/?p=${encodeURIComponent(alias)}`;
+    const cleanAlias = (alias || '').trim().replace(/^\/+/, '');
+    return `${window.location.origin}/?p=${encodeURIComponent(cleanAlias)}`;
+  };
+
+  const getVideoReviewUrl = (alias: string, videoId: string) => {
+    if (typeof window === 'undefined') return '';
+    const cleanAlias = (alias || '').trim().replace(/^\/+/, '');
+    return `${window.location.origin}/?p=${encodeURIComponent(cleanAlias)}&v=${encodeURIComponent(videoId)}`;
   };
 
   const handleCopyLink = async (alias: string) => {
@@ -202,29 +218,79 @@ export const ProjectRegistrationView: React.FC = () => {
     }
   };
 
-  // QR 모달 렌더링
+  const handleCopyDirect = async (url: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast(`${label} 복사 완료`);
+    } catch {
+      showToast('클립보드 복사 실패');
+    }
+  };
+
+  // QR 모달 Data URL 렌더링 (고해상도 PNG 즉시 생성)
   useEffect(() => {
-    if (!qrModalProject || !qrCanvasRef.current) return;
-    const url = getProposalUrl(qrModalProject.alias);
-    QRCode.toCanvas(qrCanvasRef.current, url, {
-      width: 220,
-      margin: 1,
-      color: { dark: '#0f172a', light: '#ffffff' }
+    if (!qrModalTarget) {
+      setQrDataUrl('');
+      return;
+    }
+    let isCancelled = false;
+    QRCode.toDataURL(qrModalTarget.url, {
+      width: 480,
+      margin: 2,
+      color: { dark: '#0f172a', light: '#ffffff' },
+      errorCorrectionLevel: 'H'
+    }).then(dataUrl => {
+      if (!isCancelled) setQrDataUrl(dataUrl);
+    }).catch(err => {
+      console.error('QR code generation failed:', err);
     });
-  }, [qrModalProject]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [qrModalTarget]);
+
+  // 1. 기관/프로젝트 전체 검수 QR 열기
+  const handleOpenProjectQr = (proj: { id: string; name: string; alias: string }, videoCount: number) => {
+    const cleanAlias = (proj.alias || proj.name).trim().replace(/^\/+/, '');
+    const url = getProposalUrl(cleanAlias);
+    const fileSafeName = (proj.alias || proj.name).replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+    setQrModalTarget({
+      type: 'project',
+      title: proj.name,
+      subtitle: `기관 전용 전체 검수 링크 (등록 영상 ${videoCount}개)`,
+      badge: '기관/프로젝트 전체 검수 QR',
+      url,
+      downloadFileName: `${fileSafeName}_전체검수_제안서_QR.png`
+    });
+  };
+
+  // 2. 차시별 개별 영상 검수 QR 열기
+  const handleOpenVideoQr = (proj: { id: string; name: string; alias: string }, vid: any) => {
+    const cleanAlias = (proj.alias || proj.name).trim().replace(/^\/+/, '');
+    const url = getVideoReviewUrl(cleanAlias, vid.id);
+    const fileSafeProj = (proj.alias || proj.name).replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+    const fileSafeTitle = (vid.sessionTitle || vid.fileName).replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+    const fileSafeWeek = (vid.weekTitle || '1주차').replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+    setQrModalTarget({
+      type: 'video',
+      title: `${vid.weekTitle} · ${vid.sessionTitle}`,
+      subtitle: `${proj.name} | ${vid.fileName} (${vid.fileSize})`,
+      badge: '차시별 개별 영상 검수 QR',
+      url,
+      downloadFileName: `${fileSafeProj}_${fileSafeWeek}_${fileSafeTitle}_QR.png`
+    });
+  };
 
   const handleDownloadQrPng = () => {
-    if (!qrCanvasRef.current || !qrModalProject) return;
+    if (!qrDataUrl || !qrModalTarget) return;
     try {
-      const dataUrl = qrCanvasRef.current.toDataURL('image/png');
       const a = document.createElement('a');
-      a.href = dataUrl;
-      const cleanAlias = (qrModalProject.alias || qrModalProject.name).replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
-      a.download = `${cleanAlias}_제안서_서류평가_QR.png`;
+      a.href = qrDataUrl;
+      a.download = qrModalTarget.downloadFileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      showToast('QR코드 고해상도 PNG 이미지가 다운로드되었습니다.');
+      showToast('고해상도 QR코드 PNG 이미지가 다운로드되었습니다.');
     } catch (e) {
       console.error(e);
     }
@@ -232,6 +298,7 @@ export const ProjectRegistrationView: React.FC = () => {
 
   const handleGoToReview = (alias: string) => {
     setCurrentProjectSlug(alias);
+    setPortalMode('user');
     setUserViewMode('review');
   };
 
@@ -582,12 +649,12 @@ export const ProjectRegistrationView: React.FC = () => {
 
                       <button
                         type="button"
-                        onClick={() => setQrModalProject(proj)}
+                        onClick={() => handleOpenProjectQr(proj, projVideos.length)}
                         className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
-                        title="제안서 삽입용 QR코드 확인 및 다운로드"
+                        title="제안서 삽입용 기관 전체 검수 QR코드 확인 및 다운로드"
                       >
                         <QrCode className="w-3.5 h-3.5 text-emerald-300" />
-                        <span>QR 발급</span>
+                        <span>QR 발급 (전체)</span>
                       </button>
 
                       <button
@@ -668,19 +735,28 @@ export const ProjectRegistrationView: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto flex-wrap">
                               <button
                                 type="button"
                                 onClick={() => setSelectedVideo(vid)}
-                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
                               >
                                 <Play className="w-3 h-3 fill-current" />
                                 <span>재생</span>
                               </button>
                               <button
                                 type="button"
+                                onClick={() => handleOpenVideoQr(proj, vid)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                                title="이 차시(영상) 전용 개별 QR코드 및 링크 발급"
+                              >
+                                <QrCode className="w-3 h-3 text-white" />
+                                <span>QR 발급 (개별)</span>
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => openShareModal(vid)}
-                                className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium cursor-pointer"
+                                className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium cursor-pointer transition-colors"
                               >
                                 공유
                               </button>
@@ -691,7 +767,7 @@ export const ProjectRegistrationView: React.FC = () => {
                                     deleteVideo(vid.id);
                                   }
                                 }}
-                                className="px-2 py-1 bg-white hover:bg-rose-50 border border-slate-200 text-rose-600 rounded-lg text-xs font-medium cursor-pointer"
+                                className="px-2 py-1 bg-white hover:bg-rose-50 border border-slate-200 text-rose-600 rounded-lg text-xs font-medium cursor-pointer transition-colors"
                               >
                                 삭제
                               </button>
@@ -711,48 +787,87 @@ export const ProjectRegistrationView: React.FC = () => {
       </div>
 
       {/* ================= 3. QR CODE MODAL ================= */}
-      {qrModalProject && (
+      {qrModalTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <strong className="text-sm font-bold text-slate-900">제안서 서류평가 QR코드</strong>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                qrModalTarget.type === 'video'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+              }`}>
+                <QrCode className="w-3.5 h-3.5" />
+                <span>{qrModalTarget.badge}</span>
+              </span>
               <button
                 type="button"
-                onClick={() => setQrModalProject(null)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                onClick={() => setQrModalTarget(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                aria-label="닫기"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div>
-              <h4 className="text-sm font-bold text-slate-900">{qrModalProject.name}</h4>
-              <p className="text-xs text-slate-500 mt-0.5">인쇄물(한글/워드/PPT)에 삽입 가능한 고해상도 QR</p>
+              <h4 className="text-base font-bold text-slate-900 leading-snug">{qrModalTarget.title}</h4>
+              <p className="text-xs text-slate-500 mt-0.5">{qrModalTarget.subtitle}</p>
             </div>
 
-            <div className="p-4 bg-slate-50 rounded-xl inline-block border border-slate-200 shadow-inner">
-              <canvas ref={qrCanvasRef} className="mx-auto" />
+            <div className="p-4 bg-slate-50 rounded-2xl inline-block border border-slate-200 shadow-inner mx-auto">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt="QR Code"
+                  className="w-56 h-56 mx-auto rounded-lg shadow-xs select-none bg-white p-2"
+                />
+              ) : (
+                <div className="w-56 h-56 flex items-center justify-center text-slate-400">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              )}
             </div>
 
-            <div className="p-2.5 bg-slate-900 text-white rounded-xl text-xs font-mono truncate select-all">
-              {getProposalUrl(qrModalProject.alias)}
+            <div className="text-[11px] text-slate-400">
+              * 스마트폰 카메라로 스캔하거나 제안서(한글/워드/PPT)에 삽입하세요.
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="p-2.5 bg-slate-900 text-white rounded-xl text-xs font-mono truncate select-all text-left flex items-center justify-between gap-2">
+              <span className="truncate flex-1">{qrModalTarget.url}</span>
               <button
                 type="button"
-                onClick={() => handleCopyLink(qrModalProject.alias)}
-                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                onClick={() => handleCopyDirect(qrModalTarget.url, '전용 링크')}
+                className="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-[11px] font-bold text-emerald-300 shrink-0 cursor-pointer"
               >
-                링크 복사
+                복사
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => handleCopyDirect(qrModalTarget.url, '전용 링크')}
+                className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>링크 복사</span>
               </button>
               <button
                 type="button"
                 onClick={handleDownloadQrPng}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                disabled={!qrDataUrl}
+                className="py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>PNG 다운로드</span>
+                <span>PNG 저장</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open(qrModalTarget.url, '_blank')}
+                className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>새 탭 테스트</span>
               </button>
             </div>
           </div>

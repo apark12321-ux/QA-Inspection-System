@@ -412,6 +412,16 @@ export const VideoTable: React.FC = () => {
 
                         <button
                           type="button"
+                          onClick={() => openShareModal(video)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                          title="이 강의 영상 전용 QR코드 및 개별 검수 링크 발급"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>QR·공유</span>
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => setSelectedVideo(video)}
                           className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg text-xs sm:text-sm shadow-2xs transition-all transform active:scale-95 cursor-pointer"
                         >
