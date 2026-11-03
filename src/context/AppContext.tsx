@@ -77,6 +77,7 @@ interface AppContextType {
     }
   ) => VideoSession;
   deleteVideo: (videoId: string) => void;
+  clearAllVideos: () => void;
   updateUserRole: (userId: string, newRole: UserRole) => void;
   uploadModalOpen: boolean;
   setUploadModalOpen: (open: boolean) => void;
@@ -118,7 +119,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  VIDEOS: 'video_review_videos_v1',
+  VIDEOS: 'video_review_videos_v5',
   USERS: 'video_review_users_v1',
   LOGS: 'video_review_logs_v1',
   NOTIFS: 'video_review_notifs_v1',
@@ -210,30 +211,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.USER_VIEW_MODE, mode);
   };
 
-  // Load saved videos (only real user-uploaded videos - all fictional sample videos deleted)
+  // Load saved videos (strictly real user-uploaded videos only, all mock/dummy videos auto-purged)
   const [videos, setVideos] = useState<VideoSession[]>(() => {
-    if (firebaseConfigured) return [];
+    // Purge legacy storage keys that held fictional mock videos
+    const LEGACY_STORAGE_KEYS = [
+      'whomedia_video_sessions_v1',
+      'whomedia_video_sessions_v2',
+      'video_review_videos_v1',
+      'video_review_videos_v2',
+      'video_review_videos_v3',
+      'video_review_videos_v4'
+    ];
+    LEGACY_STORAGE_KEYS.forEach(k => {
+      try { localStorage.removeItem(k); } catch {}
+    });
+
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
       if (saved) {
         const parsed = (JSON.parse(saved) as VideoSession[])
           .map(removeDemoPeopleFromVideo)
-          .filter(v => {
-            // 허구의 목데이터 영상은 전면 삭제
-            if (
-              v.id.startsWith('khcu_') ||
-              v.id.startsWith('dhc26_') ||
-              v.id.startsWith('inha26_') ||
-              v.id.startsWith('police_') ||
-              v.id.startsWith('26story')
-            ) {
-              return false;
-            }
-            if (v.videoUrl && v.videoUrl.includes('commondatastorage.googleapis.com/gtv-videos-bucket/sample/')) {
-              return false;
-            }
-            return Boolean(v.s3Key || v.sizeBytes || v.sourceType === 'direct');
-          });
+          .filter(v => Boolean(v && v.id && v.fileName && (v.s3Key?.startsWith('local-video-') || v.sourceType === 'direct')));
         localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(parsed));
         return parsed;
       }
@@ -870,9 +868,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (firebaseConfigured) {
       void deleteFirestoreDocument('videos', videoId).catch(error => console.error('영상 정보를 삭제하지 못했습니다:', error));
       if (video?.s3Key) void deleteStoredVideo(video.s3Key).catch(error => console.error('저장된 영상 원본을 삭제하지 못했습니다:', error));
+    } else if (video?.s3Key) {
+      void deleteStoredVideo(video.s3Key).catch(() => {});
     }
     if (selectedVideo?.id === videoId) setSelectedVideo(null);
     addAuditLog('VIDEO_DELETE', video ? video.fileName : videoId, '영상 파일 및 검수 데이터 영구 삭제');
+  };
+
+  const clearAllVideos = () => {
+    videos.forEach(v => {
+      if (v.s3Key) void deleteStoredVideo(v.s3Key).catch(() => {});
+    });
+    setVideos([]);
+    if (selectedVideo) setSelectedVideo(null);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.VIDEOS);
+      [
+        'whomedia_video_sessions_v1',
+        'whomedia_video_sessions_v2',
+        'video_review_videos_v1',
+        'video_review_videos_v2',
+        'video_review_videos_v3',
+        'video_review_videos_v4',
+        'video_review_videos_v5'
+      ].forEach(k => {
+        try { localStorage.removeItem(k); } catch {}
+      });
+    } catch (e) {
+      console.error(e);
+    }
+    setProjects(prev =>
+      prev.map(proj => ({
+        ...proj,
+        videoCount: 0,
+        sessions: (proj.sessions || []).map(s => ({
+          ...s,
+          videoCount: 0,
+          videos: []
+        }))
+      }))
+    );
+    addAuditLog('STORAGE_PURGE', '전체 저장소', '미업로드 잔여물 및 영상 자산 전체 초기화 (0건)');
   };
 
   const updateUserRole = (userId: string, newRole: UserRole) => {
@@ -1211,6 +1247,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateVideoAiAnalysis,
         addNewVideo,
         deleteVideo,
+        clearAllVideos,
         updateUserRole,
         uploadModalOpen,
         setUploadModalOpen,

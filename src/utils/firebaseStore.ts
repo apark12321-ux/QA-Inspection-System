@@ -5,16 +5,17 @@ export function subscribeToReviewData(
   onData: (data: FirestoreSnapshotData) => void,
   onError: (error: Error) => void
 ): () => void {
+  if (!firestore) return () => {};
   const state: FirestoreSnapshotData = { projects: [], weeks: [], lessons: [], videos: [] };
   const loaded = new Set<keyof FirestoreSnapshotData>();
   const unsubs = (['projects', 'weeks', 'lessons', 'videos'] as const).map(collectionName =>
-    firestore.collection(collectionName).onSnapshot(snapshot => {
-      state[collectionName] = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    firestore.collection(collectionName).onSnapshot((snapshot: any) => {
+      state[collectionName] = snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id }));
       loaded.add(collectionName);
       if (loaded.size === 4) onData({ ...state });
-    }, error => onError(error))
+    }, (error: any) => onError(error))
   );
-  return () => unsubs.forEach(unsubscribe => unsubscribe());
+  return () => unsubs.forEach((unsubscribe: any) => unsubscribe());
 }
 
 export function subscribeToSharedVideo(
@@ -22,6 +23,7 @@ export function subscribeToSharedVideo(
   onData: (data: FirestoreSnapshotData) => void,
   onError: (error: Error) => void
 ): () => void {
+  if (!firestore) return () => {};
   const state: FirestoreSnapshotData = { projects: [], weeks: [], lessons: [], videos: [] };
   const subscriptions = new Map<string, { id: string; unsubscribe: () => void }>();
   let closed = false;
@@ -51,12 +53,12 @@ export function subscribeToSharedVideo(
       return;
     }
 
-    const unsubscribe = firestore.collection(collection).doc(id).onSnapshot(snapshot => {
+    const unsubscribe = firestore.collection(collection).doc(id).onSnapshot((snapshot: any) => {
       const record = snapshot.exists ? { ...(snapshot.data() || {}), id: snapshot.id } : undefined;
       state[stateKey] = record ? [record] : [];
       onRecord?.(record);
       publish();
-    }, error => onError(error));
+    }, (error: any) => onError(error));
     subscriptions.set(collection, { id, unsubscribe });
   };
 
@@ -90,22 +92,33 @@ export function subscribeToSharedVideo(
 }
 
 export function newFirestoreId(collectionName: string): string {
-  return firestore.collection(collectionName).doc().id;
+  if (firestore) {
+    try {
+      return firestore.collection(collectionName).doc().id;
+    } catch {
+      // fallback
+    }
+  }
+  return `${collectionName.slice(0, 3)}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
 export async function saveFirestoreDocument(collectionName: string, id: string, data: Record<string, unknown>): Promise<void> {
+  if (!firestore) return;
   await firestore.collection(collectionName).doc(id).set(data, { merge: true });
 }
 
 export async function updateFirestoreDocument(collectionName: string, id: string, data: Record<string, unknown>): Promise<void> {
+  if (!firestore) return;
   await firestore.collection(collectionName).doc(id).update(data);
 }
 
 export async function deleteFirestoreDocument(collectionName: string, id: string): Promise<void> {
+  if (!firestore) return;
   await firestore.collection(collectionName).doc(id).delete();
 }
 
 export async function deleteFirestoreBatch(collections: Array<{ collection: string; ids: string[] }>): Promise<void> {
+  if (!firestore) return;
   const references = collections.flatMap(group => group.ids.map(id => firestore.collection(group.collection).doc(id)));
   for (let offset = 0; offset < references.length; offset += 450) {
     const batch = firestore.batch();
