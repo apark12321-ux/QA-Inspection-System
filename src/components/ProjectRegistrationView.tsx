@@ -23,7 +23,9 @@ import {
   HelpCircle,
   FileVideo,
   Loader2,
-  Trash2
+  Trash2,
+  Globe,
+  RefreshCw
 } from 'lucide-react';
 
 export const ProjectRegistrationView: React.FC = () => {
@@ -40,7 +42,11 @@ export const ProjectRegistrationView: React.FC = () => {
     setUserViewMode,
     setPortalMode,
     currentUser,
-    setCurrentUserName
+    setCurrentUserName,
+    deployDomain,
+    setDeployDomain,
+    exportSyncData,
+    importSyncData
   } = useApp();
 
   // 1. 프로젝트 등록 상태
@@ -74,6 +80,14 @@ export const ProjectRegistrationView: React.FC = () => {
   // 4. 담당자 / 검수자 이름 설정 상태
   const [editingUserName, setEditingUserName] = useState(false);
   const [tempUserName, setTempUserName] = useState(currentUser.name || '검수자');
+
+  // 5. 배포 도메인 설정 상태
+  const [isEditingDomain, setIsEditingDomain] = useState(false);
+  const [tempDomain, setTempDomain] = useState(deployDomain);
+
+  useEffect(() => {
+    setTempDomain(deployDomain);
+  }, [deployDomain]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -197,22 +211,60 @@ export const ProjectRegistrationView: React.FC = () => {
   };
 
   const getProposalUrl = (alias: string) => {
-    if (typeof window === 'undefined') return '';
     const cleanAlias = (alias || '').trim().replace(/^\/+/, '');
-    return `${window.location.origin}/?p=${encodeURIComponent(cleanAlias)}`;
+    const base = (deployDomain || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/+$/, '');
+    return `${base}/?p=${encodeURIComponent(cleanAlias)}`;
   };
 
   const getVideoReviewUrl = (alias: string, videoId: string) => {
-    if (typeof window === 'undefined') return '';
     const cleanAlias = (alias || '').trim().replace(/^\/+/, '');
-    return `${window.location.origin}/?p=${encodeURIComponent(cleanAlias)}&v=${encodeURIComponent(videoId)}`;
+    const base = (deployDomain || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/+$/, '');
+    return `${base}/?p=${encodeURIComponent(cleanAlias)}&v=${encodeURIComponent(videoId)}`;
+  };
+
+  const handleExportSync = () => {
+    try {
+      const json = exportSyncData();
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.download = `qasystem-sync-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Vercel 동기화 데이터 팩(JSON)이 다운로드되었습니다.');
+    } catch {
+      showToast('동기화 파일 생성 실패');
+    }
+  };
+
+  const handleImportSync = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = evt.target?.result as string;
+      if (content) {
+        const success = importSyncData(content);
+        if (success) {
+          showToast('Vercel 동기화 데이터를 성공적으로 불러왔습니다!');
+        } else {
+          showToast('동기화 데이터 형식이 올바르지 않습니다.');
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleCopyLink = async (alias: string) => {
     const url = getProposalUrl(alias);
     try {
       await navigator.clipboard.writeText(url);
-      showToast(`제안서 전용 링크 복사 완료: /?p=${alias}`);
+      showToast(`제안서 전용 링크 복사 완료: ${url}`);
     } catch {
       showToast('클립보드 복사 실패');
     }
@@ -328,6 +380,105 @@ export const ProjectRegistrationView: React.FC = () => {
           <span>{toastMsg}</span>
         </div>
       )}
+
+      {/* ================= 0. VERCEL DEPLOYMENT & SYNC BANNER ================= */}
+      <section className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl border border-slate-800 p-5 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              <Globe className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Vercel 공식 배포 연동 시스템</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-bold text-white">제안서 QR·링크 발급 기준 도메인:</span>
+              {isEditingDomain ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="url"
+                    value={tempDomain}
+                    onChange={e => setTempDomain(e.target.value)}
+                    className="px-2.5 py-1 text-xs bg-slate-800 border border-slate-600 rounded-lg text-white font-mono w-64"
+                    placeholder="https://qasystem-psi.vercel.app"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeployDomain(tempDomain);
+                      setIsEditingDomain(false);
+                      showToast('배포 도메인이 설정되었습니다.');
+                    }}
+                    className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white cursor-pointer"
+                  >
+                    저장
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempDomain(typeof window !== 'undefined' ? window.location.origin : '');
+                    }}
+                    className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300 cursor-pointer"
+                    title="현재 접속 중인 브라우저 주소로 자동 입력"
+                  >
+                    현재주소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingDomain(false)}
+                    className="px-1.5 py-1 text-slate-400 text-xs hover:text-white"
+                  >
+                    취소
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <code className="px-2.5 py-1 bg-white/10 rounded-lg font-mono text-xs text-blue-300 font-bold border border-white/10">
+                    {deployDomain}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingDomain(true)}
+                    className="text-[11px] text-slate-300 hover:text-white underline cursor-pointer"
+                  >
+                    도메인 변경
+                  </button>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              본 시스템에서 발급하는 모든 <strong>제안서 QR코드 및 차시별 개별 링크</strong>가 위 Vercel 실서버 주소(<code>{deployDomain}</code>)로 일괄 생성되어, 외부 심사위원이 스마트폰으로 스캔하거나 링크를 열었을 때 바로 열립니다.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={handleExportSync}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 active:bg-white/30 text-white rounded-xl text-xs font-bold border border-white/20 transition-all cursor-pointer shadow-2xs"
+              title="등록된 프로젝트 목록과 영상 정보들을 Vercel 사이트에 동기화하기 위한 백업 파일 다운로드"
+            >
+              <Download className="w-3.5 h-3.5 text-blue-300" />
+              <span>동기화 데이터 내보내기 (JSON)</span>
+            </button>
+            <label
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              title="내보낸 동기화 파일을 선택하여 이 화면에 프로젝트와 영상 정보를 즉시 동일하게 반영"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>동기화 데이터 가져오기</span>
+              <input type="file" accept=".json" onChange={handleImportSync} className="hidden" />
+            </label>
+            <a
+              href={deployDomain}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Vercel 배포 사이트 열기</span>
+            </a>
+          </div>
+        </div>
+      </section>
 
       {/* ================= 1. SYSTEM ARCHITECTURE & HOW TO MANAGE GUIDE ================= */}
       <section className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6">

@@ -37,7 +37,8 @@ export const VideoTable: React.FC = () => {
     addVideoToProposalSamples,
     setUserViewMode,
     isAdminMode,
-    setIsAdminMode
+    setIsAdminMode,
+    deployDomain
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,7 +93,8 @@ export const VideoTable: React.FC = () => {
 
   const handleCopyShareLink = async () => {
     if (!selectedProjectAlias) return;
-    const shareUrl = new URL('/' + encodeURIComponent(selectedProjectAlias), window.location.origin).toString();
+    const base = (deployDomain || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/+$/, '');
+    const shareUrl = `${base}/?p=${encodeURIComponent(selectedProjectAlias)}`;
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopiedLink(true);
@@ -103,10 +105,10 @@ export const VideoTable: React.FC = () => {
   };
 
   const projectProposalUrl = useMemo(() => {
-    if (typeof window === 'undefined' || !selectedProjectAlias) return '';
-    const origin = window.location.origin;
-    return `${origin}/?p=${encodeURIComponent(selectedProjectAlias)}`;
-  }, [selectedProjectAlias]);
+    if (!selectedProjectAlias) return '';
+    const base = (deployDomain || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/+$/, '');
+    return `${base}/?p=${encodeURIComponent(selectedProjectAlias)}`;
+  }, [deployDomain, selectedProjectAlias]);
 
   useEffect(() => {
     if (!isQrModalOpen || !qrCanvasRef.current || !projectProposalUrl) return;

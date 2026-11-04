@@ -114,6 +114,10 @@ interface AppContextType {
   setActiveProposalSlug: (slug: string | null) => void;
   isAdminMode: boolean;
   setIsAdminMode: (admin: boolean) => void;
+  deployDomain: string;
+  setDeployDomain: (domain: string) => void;
+  exportSyncData: () => string;
+  importSyncData: (jsonStr: string) => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -179,10 +183,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             sessionCount: (p.sessions || []).filter(s => !s.id.startsWith('sess-khcu-')).length
           }));
         if (parsed.length > 0) {
-          // Ensure 경희사이버대학교 is included
-          if (!parsed.some(p => p.alias === 'khcu' || p.id === 'proj-khcu')) {
-            parsed.unshift(INITIAL_PROJECTS[0]);
-          }
+          INITIAL_PROJECTS.forEach(initProj => {
+            if (!parsed.some(p => p.alias.toLowerCase() === initProj.alias.toLowerCase() || p.id === initProj.id)) {
+              parsed.push(initProj);
+            }
+          });
           localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(parsed));
           return parsed;
         }
@@ -364,6 +369,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error(e);
     }
     return { slug: null, mode: 'user' as const };
+  };
+
+  const DEFAULT_DEPLOY_DOMAIN = 'https://qasystem-psi.vercel.app';
+  const [deployDomain, setDeployDomainState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('video_review_deploy_domain_v1');
+      if (saved) return saved.trim().replace(/\/+$/, '');
+      if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        if (hostname.includes('vercel.app')) {
+          return window.location.origin;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return DEFAULT_DEPLOY_DOMAIN;
+  });
+
+  const setDeployDomain = (domain: string) => {
+    const cleaned = domain.trim().replace(/\/+$/, '');
+    setDeployDomainState(cleaned || DEFAULT_DEPLOY_DOMAIN);
+    try {
+      localStorage.setItem('video_review_deploy_domain_v1', cleaned || DEFAULT_DEPLOY_DOMAIN);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const initialRoute = parseCurrentRoute();
@@ -1220,6 +1252,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
   }, [projects]);
 
+  const exportSyncData = (): string => {
+    const payload = {
+      version: 'whomedia_sync_v1',
+      exportedAt: new Date().toISOString(),
+      projects,
+      videos: videos.map(v => ({
+        id: v.id,
+        weekId: v.weekId,
+        weekTitle: v.weekTitle,
+        sessionTitle: v.sessionTitle,
+        fileName: v.fileName,
+        videoUrl: v.videoUrl,
+        duration: v.duration,
+        fileSize: v.fileSize,
+        projectId: v.projectId,
+        lessonId: v.lessonId,
+        s3Key: v.s3Key,
+        mimeType: v.mimeType,
+        sizeBytes: v.sizeBytes,
+        sourceType: v.sourceType,
+        status: v.status,
+        reviewerName: v.reviewerName,
+        reviews: v.reviews,
+        subtitles: v.subtitles,
+        uploadedAt: v.uploadedAt
+      })),
+      proposalSamples,
+      proposalClients
+    };
+    return JSON.stringify(payload, null, 2);
+  };
+
+  const importSyncData = (jsonStr: string): boolean => {
+    try {
+      const data = JSON.parse(jsonStr);
+      if (Array.isArray(data.projects) && data.projects.length > 0) {
+        setProjects(data.projects);
+        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(data.projects));
+      }
+      if (Array.isArray(data.videos)) {
+        setVideos(data.videos);
+        localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(data.videos));
+      }
+      if (Array.isArray(data.proposalSamples)) {
+        setProposalSamples(data.proposalSamples);
+        localStorage.setItem(STORAGE_KEYS.PROPOSAL_SAMPLES, JSON.stringify(data.proposalSamples));
+      }
+      if (Array.isArray(data.proposalClients)) {
+        setProposalClients(data.proposalClients);
+        localStorage.setItem(STORAGE_KEYS.PROPOSAL_CLIENTS, JSON.stringify(data.proposalClients));
+      }
+      addAuditLog('SYNC_IMPORT', '전체 데이터', 'Vercel 동기화 팩 불러오기 완료');
+      return true;
+    } catch (e) {
+      console.error('Import sync data failed:', e);
+      return false;
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1288,7 +1379,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveProposalSlug,
         isAdminMode,
         setIsAdminMode,
-        setCurrentUserName
+        setCurrentUserName,
+        deployDomain,
+        setDeployDomain,
+        exportSyncData,
+        importSyncData
       }}
     >
       {children}

@@ -5,7 +5,7 @@ import { formatTime } from '../utils/formatters';
 import { X, Share2, Copy, Check, Clock, QrCode, Download, ExternalLink, Loader2 } from 'lucide-react';
 
 export const ShareModal: React.FC = () => {
-  const { shareModalVideo, shareModalTimestamp, projects, closeShareModal } = useApp();
+  const { shareModalVideo, shareModalTimestamp, projects, closeShareModal, deployDomain } = useApp();
   const [includeTime, setIncludeTime] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
@@ -20,7 +20,7 @@ export const ShareModal: React.FC = () => {
   const shareUrl = useMemo(() => {
     if (!shareModalVideo) return '';
     const project = projects.find(item => item.id === shareModalVideo.projectId);
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const origin = (deployDomain || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/+$/, '');
     const url = new URL(origin);
     url.pathname = '/';
     if (project?.alias) {
@@ -31,7 +31,7 @@ export const ShareModal: React.FC = () => {
       url.searchParams.set('t', String(Math.floor(shareModalTimestamp)));
     }
     return url.toString();
-  }, [includeTime, projects, shareModalTimestamp, shareModalVideo]);
+  }, [deployDomain, includeTime, projects, shareModalTimestamp, shareModalVideo]);
 
   useEffect(() => {
     if (!shareUrl) {
